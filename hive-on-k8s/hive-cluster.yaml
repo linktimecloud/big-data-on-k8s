@@ -1,0 +1,291 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: spark-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - "pods"
+  - "services"
+  - "configmaps"
+  - "secrets"
+  verbs:
+  - "*"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: default-spark-role-binding
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: spark-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: linktime-hms
+  namespace: default
+spec:
+  ports:
+  - port: 9083
+  selector:
+    app: linktime-hms
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: linktime-hms
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: linktime-hms
+  replicas: 1
+  serviceName: "linktime-hms"
+  template:
+    metadata:
+      labels:
+        app: linktime-hms
+    spec:
+      dnsPolicy: ClusterFirst
+      containers:
+      - name: linktime-hms
+        image: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/linktime-hms:4.0
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DEFAULT_SYSTEM_USER
+          value: dcos
+        - name: HIVE_CONNECTION_USER_NAME
+          value: root
+        - name: HIVE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secrets
+              key: ROOT_PASSWORD
+        - name: HIVE_CONNECTION_DRIVER_NAME
+          value: com.mysql.jdbc.Driver
+        - name: HIVE_METASTORE_URIS
+          value: thrift://localhost:9083
+        - name: LINKTIME_HMS_HOSTNAME
+          value: linktime-hms.default.svc.cluster.local
+        - name: IMPORT_DB_HOST
+          value: mysql-service.default.svc.cluster.local
+        - name: IMPORT_DB_PORT
+          value: '3306'
+        - name: IMPORT_DB_DATABASE
+          value: hive_db
+        - name: MAX_POOL_SIZE
+          value: '10'
+        - name: LOCAL_MODE
+          value: 'True'
+        - name: HIVE_MODE
+          value: service
+        - name: KERBEROS_ENABLED
+          value: 'False'
+        ports:
+        - containerPort: 9083
+        volumeMounts:
+        - name: logs
+          mountPath: /tmp/root
+        - name: hadoop-volume
+          mountPath: /opt/hadoop/etc/hadoop/
+        resources:
+          requests:
+            memory: "0Mi"
+            cpu: 0
+        imagePullPolicy: IfNotPresent
+        readinessProbe:
+          exec:
+            command:
+            - bash
+            - /healthcheck.sh
+          initialDelaySeconds: 20
+          periodSeconds: 30
+          timeoutSeconds: 20
+          successThreshold: 1
+          failureThreshold: 3
+        livenessProbe:
+          initialDelaySeconds: 20
+          periodSeconds: 30
+          failureThreshold: 3
+          timeoutSeconds: 20
+          successThreshold: 1
+          tcpSocket:
+            port: 9083
+        startupProbe:
+          initialDelaySeconds: 10
+          failureThreshold: 10
+          periodSeconds: 30
+          tcpSocket:
+            port: 9083
+      initContainers:
+      - name: init-mysql
+        image: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/linktime-hms:4.0
+        imagePullPolicy: IfNotPresent
+        command: ['bash', '/hms/initHiveDb.sh']
+        env:
+        - name: HIVE_CONNECTION_USER_NAME
+          value: root
+        - name: HIVE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secrets
+              key: ROOT_PASSWORD
+        - name: IMPORT_DB_HOST
+          value: mysql-service.default.svc.cluster.local
+        - name: IMPORT_DB_PORT
+          value: '3306'
+        - name: IMPORT_DB_DATABASE
+          value: hive_db
+        - name: HIVE_MODE
+          value: service
+        - name: MAX_POOL_SIZE
+          value: '10'
+      volumes:
+        - name: logs
+          emptyDir: {}
+        - name: hadoop-volume
+          configMap:
+            name: my-hdfs-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: linktime-hs2
+  namespace: default
+  labels:
+    app: linktime-hs2
+spec:
+  ports:
+  - port: 10000
+    name: thrift
+  - port: 10001
+    name: http
+  - port: 10002
+    name: webui
+  selector:
+    app: linktime-hs2
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: linktime-hs2
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: linktime-hs2
+  replicas: 1
+  serviceName: "linktime-hs2"
+  template:
+    metadata:
+      labels:
+        app: linktime-hs2
+    spec:
+      dnsPolicy: ClusterFirst
+      containers:
+        - name: linktime-hs2
+          image: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/linktime-hs2-group:4.0
+          imagePullPolicy: IfNotPresent
+          command:
+          - /bin/bash
+          - '-c'
+          - /hs2/startHiveServe2.sh
+          env:
+          - name: LOCAL_MODE
+            value: 'True'
+          - name: DEFAULT_SYSTEM_USER
+            value: dcos
+          - name: LINKTIME_HS2_PORT
+            value: '10000'
+          - name: LINKTIME_HMS_PORT
+            value: '9083'
+          - name: HIVE_MODE
+            value: service
+          - name: HIVE_ATLAS_EMBEDDED
+            value: 'False'
+          - name: KERBEROS_ENABLED
+            value: 'False'
+          - name: CLIENT_KERBEROS_ENABLED
+            value: 'False'
+          - name: LINKTIME_HS2_HOSTNAME
+            value: linktime-hs2-[[INDEX]].linktime-hs2.default.svc.cluster.local
+          - name: HIVE_METASTORE_URIS
+            value: thrift://linktime-hms-0.linktime-hms.default.svc.cluster.local:9083
+          - name: SPARK_MASTER
+            value: https://kubernetes.default.svc.cluster.local:443
+          - name: SPARK_KUBERNETES_CONTAINER_IMAGE
+            value: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/linktime-hs2-group:4.0
+          - name: SPARK_KUBERNETES_NAMESPACE
+            value: default
+          - name: HADOOP_CONFIGMAPNAME
+            value: my-hdfs-config
+          - name: HIVE_AUTO_CONVERT_JOIN
+            value: 'false'
+          - name: SPARK_SERVICE_NAME
+            value: default
+          - name: SPARK_EXECUTOR_CORES
+            value: '1'
+          - name: SPARK_EXECUTOR_MEMORY
+            value: 1g
+          - name: SPARK_EXECUTOR_INSTANCES
+            value: '1'
+          - name: SPARK_EVENTLOG_DIR
+            value: hdfs://default/historyservice
+          - name: SPARK_EVENTLOG_ENABLED
+            value: 'true'
+          - name: STORAGE_MULTI_TENANCY_ENABLE
+            value: 'True'
+          ports:
+          - containerPort: 10000
+          - containerPort: 10001
+          - containerPort: 10002
+          volumeMounts:
+          - name: logs
+            mountPath: /tmp/root
+          - name: hadoop-volume
+            mountPath: /opt/hadoop/etc/hadoop/
+          resources:
+            requests:
+              memory: "0Mi"
+              cpu: 0
+          readinessProbe:
+            exec:
+              command:
+              - bash
+              - /healthcheck.sh
+            initialDelaySeconds: 20
+            periodSeconds: 40
+            timeoutSeconds: 30
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+              - bash
+              - /healthcheck.sh
+            initialDelaySeconds: 20
+            periodSeconds: 40
+            failureThreshold: 3
+            timeoutSeconds: 30
+            successThreshold: 1
+          startupProbe:
+            initialDelaySeconds: 10
+            failureThreshold: 8
+            periodSeconds: 30
+            tcpSocket:
+              port: 10000
+          imagePullPolicy: IfNotPresent
+      volumes:
+      - name: logs
+        emptyDir: {}
+      - name: hadoop-volume
+        configMap:
+          name: my-hdfs-config

@@ -1,0 +1,40 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnect
+metadata:
+  name: my-connect-cluster
+#  annotations:
+# use-connector-resources configures this KafkaConnect
+# to use KafkaConnector resources to avoid
+# needing to call the Connect REST API directly
+#   strimzi.io/use-connector-resources: "true"
+spec:
+  image: {{kafka_connect_image}}
+  replicas: 1
+  bootstrapServers: kafka-cluster-strimzi-kafka-0.kafka-cluster-strimzi-kafka-brokers.default.svc.cluster.local:9092
+  logging:
+    type: inline
+    loggers:
+      log4j.rootLogger: "INFO"
+  config:
+    group.id: connect-cluster
+    offset.storage.topic: connect-cluster-offsets
+    config.storage.topic: connect-cluster-configs
+    status.storage.topic: connect-cluster-status
+    # -1 means it will use the default replication factor configured in the broker
+    config.storage.replication.factor: 1
+    offset.storage.replication.factor: 1
+    status.storage.replication.factor: 1
+    offset.storage.partitions: 1
+    status.storage.partitions: 1
+    key.converter: org.apache.kafka.connect.storage.StringConverter
+    key.converter.schema.registry.url: http://schema-registry-cluster-svc:8085
+    value.converter: io.confluent.connect.avro.AvroConverter
+    value.converter.schema.registry.url: http://schema-registry-cluster-svc:8085
+    key.converter.schemas.enable: false
+    value.converter.schemas.enable: true
+    internal.key.converter: org.apache.kafka.connect.json.JsonConverter
+    internal.value.converter: org.apache.kafka.connect.json.JsonConverter
+    internal.key.converter.schemas.enable: false
+    internal.value.converter.schemas.enable: false
+    offset.flush.interval.ms: 10000.0
+    config.action.reload: none

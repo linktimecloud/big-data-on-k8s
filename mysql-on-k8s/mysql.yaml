@@ -1,0 +1,97 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secrets
+  namespace: default
+type: Opaque
+data:
+  ROOT_PASSWORD: aWNhcnVzMDMzNw==
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: default
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  serviceName: mysql-service
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      securityContext:
+        runAsUser: 0
+      containers:
+        - name: mysql
+          image: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/mysql:5.7.36
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - mountPath: "/bitnami/mysql"
+              name: mysql-storage
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secrets
+                  key: ROOT_PASSWORD
+          readinessProbe:
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            exec:
+              command:
+                - sh
+                - '-c'
+                - |
+                  password_aux="${MYSQL_ROOT_PASSWORD:-}"
+                  if [ -f "${MYSQL_ROOT_PASSWORD_FILE:-}" ]; then
+                      password_aux=$(cat $MYSQL_ROOT_PASSWORD_FILE)
+                  fi
+                  mysqladmin status -uroot -p$password_aux
+          livenessProbe:
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            exec:
+              command:
+                - sh
+                - '-c'
+                - |
+                  password_aux="${MYSQL_ROOT_PASSWORD:-}"
+                  if [ -f "${MYSQL_ROOT_PASSWORD_FILE:-}" ]; then
+                      password_aux=$(cat $MYSQL_ROOT_PASSWORD_FILE)
+                  fi
+                  mysqladmin status -uroot -p$password_aux
+          startupProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 5
+            failureThreshold: 6
+            periodSeconds: 10
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+  namespace: default
+spec:
+  selector:
+    app: mysql
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
