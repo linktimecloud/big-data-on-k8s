@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-manager
+  namespace: default
+  labels:
+    app: kafka-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-manager
+  template:
+    metadata:
+      labels:
+        app: kafka-manager
+    spec:
+      containers:
+        - name: kafka-manger
+          image: {{kafka_manager_image}}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9060
+              protocol: TCP
+          env:
+            - name: TIMEZONE
+              value: "Asia/Shanghai"
+            - name: JDBC_URL
+              value: "jdbc:mysql://mysql-service.default.svc.cluster.local:3306/kafka_manager?characterEncoding=utf8"
+            - name: JDBC_UID
+              value: "root"
+            - name: JDBC_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secrets
+                  key: ROOT_PASSWORD
+            - name: AUTHORIZATION_KEY
+              value: "linktime-bdos-data-service-web-secret-for-backend-and-node-to-send-payload-and-verification"
+                #          resources:
+                #            limits:
+                #              cpu: '1'
+                #              memory: 2Gi
+                #            requests:
+                #              cpu: '1'
+                #              memory: 2Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9060
+              scheme: HTTP
+            initialDelaySeconds: 15
+            timeoutSeconds: 3
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9060
+              scheme: HTTP
+            initialDelaySeconds: 15
+            timeoutSeconds: 3
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: IfNotPresent
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-manager-svc
+  namespace: default
+  labels:
+    app: kafka-manager
+spec:
+  ports:
+    - name: port-tcp-9060
+      protocol: TCP
+      port: 9060
+      targetPort: 9060
+  selector:
+    app: kafka-manager
+  type: ClusterIP

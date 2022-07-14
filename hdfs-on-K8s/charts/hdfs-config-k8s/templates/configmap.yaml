@@ -1,0 +1,379 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "hdfs-k8s.config.fullname" . }}
+  labels:
+    app: {{ template "hdfs-k8s.client.name" . }}
+    chart: {{ template "hdfs-k8s.subchart" . }}
+    release: {{ .Release.Name }}
+data:
+  core-site.xml: |
+    <?xml version="1.0"?>
+    <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+    <configuration>
+    {{- if .Values.global.kerberosEnabled }}
+      <property>
+        <name>hadoop.security.authentication</name>
+        <value>kerberos</value>
+      </property>
+      <!--
+      This is service level RPC authorization, which is separate from HDFS file
+      level ACLs.  This concerns who can talk to HDFS daemons including
+      datanodes talking to namenode.  As part of the authorization, namenode
+      tries to validate that DNS can uniquely traslate the datanode IP to the
+      hostname in the datanode Kerberos principal.  (i.e. The client IP is what
+      Kerberos has authenticated). This does not work well when both namenode
+      and datanodes are using the Kubernetes HostNetwork and namenode is using
+      the StatefulSet. The same cluster node IP can be mapped to two different
+      DNS names. So we disable this. Again this is only service level RPC
+      authorization and does not affect HDFS file level permission ACLs.
+      Ref: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/ServiceLevelAuth.html
+      -->
+      <property>
+        <name>hadoop.security.authorization</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>hadoop.rpc.protection</name>
+        <value>authentication</value>
+      </property>
+      <property>
+        <name>hadoop.user.group.static.mapping.overrides</name>
+        <value>hdfs=root;</value>
+      </property>
+    {{- end }}
+    {{- range $key, $value := .Values.customHadoopConfig.coreSite }}
+      <property>
+        <name>{{ $key }}</name>
+        <value>{{ $value }}</value>
+      </property>
+    {{- end }}
+    {{- if .Values.global.namenodeHAEnabled }}
+      <property>
+        <name>fs.defaultFS</name>
+        <value>hdfs://default</value>
+      </property>
+      <property>
+        <name>ha.zookeeper.quorum</name>
+        <value>{{ template "zookeeper-quorum" . }}</value>
+      </property>
+      <property>
+        <name>ha.zookeeper.parent-znode</name>
+        <value>/hadoop-ha/hdfs-k8s</value>
+      </property>
+    {{- else }}
+      <property>
+        <name>fs.defaultFS</name>
+        <value>hdfs://{{ template "namenode-svc-0" . }}:8020</value>
+      </property>
+    {{- end }}
+      <property>
+        <name>fs.trash.interval</name>
+        <value>1440</value>
+      </property>
+      <property>
+        <name>fs.trash.checkpoint.interval</name>
+        <value>0</value>
+      </property>
+      <property>
+        <name>fs.permissions.umask-mode</name>
+        <value>037</value>
+      </property>
+    </configuration>
+  hdfs-site.xml: |
+    <?xml version="1.0"?>
+    <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+    <configuration>
+    {{- if .Values.global.kerberosEnabled }}
+      <property>
+        <name>dfs.block.access.token.enable</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>dfs.encrypt.data.transfer</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>dfs.namenode.delegation.token.max-lifetime</name>
+        <value>31536000000</value>
+      </property>
+      <property>
+        <name>dfs.namenode.delegation.token.renew-interval</name>
+        <value>31536000000</value>
+      </property>
+      <property>
+        <name>dfs.webhdfs.enabled</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>dfs.permissions.enabled</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>dfs.permissions</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>dfs.permissions.ContentSummary.subAccess</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>dfs.namenode.kerberos.principal</name>
+        <value>hadoop/hadoop@LINKTIME.CLOUD</value>
+      </property>
+      <property>
+        <name>dfs.namenode.keytab.file</name>
+        <value>/etc/security/keytabs/hadoop.keytab</value>
+      </property>
+      <property>
+        <name>dfs.namenode.kerberos.internal.spnego.principal</name>
+        <value>*</value>
+      </property>
+      <property>
+        <name>dfs.web.authentication.kerberos.principal</name>
+        <value>HTTP/_HTTP_PRINCIPAL__PRINCIPAL_SUFFIX_@LINKTIME.CLOUD</value>
+      </property>
+      <property>
+        <name>dfs.web.authentication.kerberos.keytab</name>
+        <value>/etc/security/keytabs/_KEYTAB_NAME_.keytab</value>
+      </property>
+      <property>
+        <name>dfs.journalnode.kerberos.principal</name>
+        <value>hadoop/hadoop@LINKTIME.CLOUD</value>
+      </property>
+      <property>
+        <name>dfs.journalnode.kerberos.internal.spnego.principal</name>
+        <value>*</value>
+      </property>
+      <property>
+        <name>dfs.journalnode.keytab.file</name>
+        <value>/etc/security/keytabs/hadoop.keytab</value>
+      </property>
+      <property>
+        <name>dfs.datanode.kerberos.principal</name>
+        <value>hadoop/hadoop@LINKTIME.CLOUD</value>
+      </property>
+      <property>
+        <name>dfs.datanode.keytab.file</name>
+        <value>/etc/security/keytabs/hadoop.keytab</value>
+      </property>
+      {{- if .Values.global.jsvcEnabled }}
+      <property>
+        <name>dfs.datanode.address</name>
+        <value>0.0.0.0:1004</value>
+      </property>
+      <property>
+        <name>dfs.datanode.http.address</name>
+        <value>0.0.0.0:1006</value>
+      </property>
+      {{- else }}
+      <property>
+        <name>dfs.http.policy</name>
+        <value>HTTPS_ONLY</value>
+      </property>
+      <property>
+        <name>dfs.datanode.address</name>
+        <value>0.0.0.0:5001</value>
+      </property>
+      <property>
+        <name>dfs.data.transfer.protection</name>
+        <value>authentication</value>
+      </property>
+      {{- end }}
+    {{- end }}
+    {{- range $key, $value := .Values.customHadoopConfig.hdfsSite }}
+      <property>
+        <name>{{ $key }}</name>
+        <value>{{ $value }}</value>
+      </property>
+    {{- end }}
+    {{- if .Values.global.namenodeHAEnabled }}
+      <property>
+        <name>dfs.nameservices</name>
+        <value>default</value>
+      </property>
+      <property>
+        <name>dfs.ha.namenodes.default</name>
+        <value>nn0,nn1</value>
+      </property>
+      <property>
+        <name>dfs.namenode.rpc-address.default.nn0</name>
+        <value>{{ template "namenode-svc-0" . }}:8020</value>
+      </property>
+      <property>
+        <name>dfs.namenode.rpc-address.default.nn1</name>
+        <value>{{ template "namenode-svc-1" . }}:8020</value>
+      </property>
+      <property>
+        <name>dfs.namenode.shared.edits.dir</name>
+        <value>qjournal://{{ template "journalnode-quorum" . }}/default</value>
+      </property>
+      <property>
+        <name>dfs.ha.automatic-failover.enabled</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>dfs.ha.fencing.methods</name>
+        <value>
+          sshfence
+          shell(/bin/true)
+        </value>
+      </property>
+      <property>
+        <name>dfs.ha.fencing.ssh.private-key-files</name>
+        <value>/etc/security/keytabs/id_rsa</value>
+      </property>
+      <property>
+        <name>dfs.journalnode.edits.dir</name>
+        <value>/hadoop/dfs/journal</value>
+      </property>
+      <property>
+        <name>dfs.client.failover.proxy.provider.default</name>
+        <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+      </property>
+    {{- end }}
+      <property>
+        <name>dfs.namenode.name.dir</name>
+        <value>file:///hadoop/dfs/name</value>
+      </property>
+      <property>
+        <name>dfs.namenode.datanode.registration.ip-hostname-check</name>
+        <value>false</value>
+      </property>
+      <property>
+        <name>dfs.namenode.rpc-bind-host</name>
+        <value>0.0.0.0</value>
+      </property>
+      <property>
+        <name>dfs.namenode.http-bind-host</name>
+        <value>0.0.0.0</value>
+      </property>
+      <property>
+        <name>dfs.datanode.handler.count</name>
+        <value>10</value>
+      </property>
+      <property>
+        <name>dfs.datanode.max.xcievers</name>
+        <value>8192</value>
+      </property>
+      <property>
+        <name>dfs.datanode.max.transfer.threads</name>
+        <value>8192</value>
+      </property>
+      <property>
+        <name>dfs.datanode.data.dir</name>
+        <value>{{ template "datanode-data-dirs" . }}</value>
+      </property>
+    </configuration>
+  yarn-site.xml: |
+    <?xml version="1.0"?>
+    <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+    <configuration>
+      <property>
+        <name>yarn.nodemanager.aux-services</name>
+        <value>mapreduce_shuffle</value>
+      </property>
+      <property>
+        <name>yarn.nodemanager.aux-services.mapreduce.shuffle.class</name>
+        <value>org.apache.hadoop.mapred.ShuffleHandler</value>
+      </property>
+      <property>
+        <name>yarn.resourcemanager.address</name>
+        <value>{{ template "namenode-svc-1" . }}:8032</value>
+      </property>
+      <property>
+        <name>yarn.resourcemanager.scheduler.address</name>
+        <value>{{ template "namenode-svc-1" . }}:8030</value>
+      </property>
+      <property>
+        <name>yarn.resourcemanager.resource-tracker.address</name>
+        <value>{{ template "namenode-svc-1" . }}:8031</value>
+      </property>
+      <property>
+        <name>yarn.resourcemanager.admin.address</name>
+        <value>{{ template "namenode-svc-1" . }}:8033</value>
+      </property>
+      <property>
+        <name>yarn.resourcemanager.webapp.address</name>
+        <value>{{ template "namenode-svc-1" . }}:8088</value>
+      </property>
+      <property>
+        <name>yarn.resourcemanager.bind-host</name>
+        <value>0.0.0.0</value>
+      </property>
+      <property>
+        <name>yarn.nodemanager.bind-host</name>
+        <value>0.0.0.0</value>
+      </property>
+      <property>
+        <name>yarn.nodemanager.resource.memory-mb</name>
+        <value>4096</value>
+        <description>Amount of physical memory, in MB, that can be allocated for containers.</description>
+      </property>
+      <property>
+        <name>yarn.scheduler.maximum-allocation-mb</name>
+        <value>3072</value>
+        <description>The maximum allocation for every container request at the RM, in MBs. Memory requests higher than this won't take effect, and will get capped to this value.</description>
+      </property>
+      <property>
+        <name>yarn.scheduler.minimum-allocation-mb</name>
+        <value>512</value>
+        <description>The minimum allocation for every container request at the RM, in MBs. Memory requests lower than this won't take effect, and the specified value will get allocated at minimum.</description>
+      </property>
+      <property>
+        <name>yarn.resourcemanager.scheduler.class</name>
+        <value>org.apache.hadoop.yarn.server.resourcemanager.scheduler.fair.FairScheduler</value>
+      </property>
+      <property>
+        <name>yarn.scheduler.fair.allocation.file</name>
+        <value>/opt/hadoop/etc/hadoop/fair_scheduler.xml</value>
+      </property>
+      <property>
+        <name>yarn.nodemanager.vmem-check-enabled</name>
+        <value>false</value>
+        <description>Whether virtual memory limits will be enforced for containers</description>
+      </property>
+      <property>
+        <name>yarn.nodemanager.vmem-pmem-ratio</name>
+        <value>20</value>
+        <description>Ratio between virtual memory to physical memory when setting memory limits for containers</description>
+      </property>
+      <property>
+        <name>yarn.log-aggregation-enable</name>
+        <value>true</value>
+      </property>
+      <property>
+        <name>yarn.log-aggregation.retain-seconds</name>
+        <value>302400</value>
+      </property>
+      <property>
+        <name>yarn.resourcemanager.principal</name>
+        <value>hadoop/hadoop@LINKTIME.CLOUD</value>
+      </property>
+      <property>
+        <name>yarn.resourcemanager.keytab</name>
+        <value>/etc/security/keytabs/hadoop.keytab</value>
+      </property>
+      <property>
+        <name>yarn.nodemanager.principal</name>
+        <value>hadoop/hadoop@LINKTIME.CLOUD</value>
+      </property>
+      <property>
+        <name>yarn.nodemanager.keytab</name>
+        <value>/etc/security/keytabs/hadoop.keytab</value>
+      </property>
+      <property>
+        <name>yarn.nodemanager.container-executor.class</name>
+        <value>org.apache.hadoop.yarn.server.nodemanager.LinuxContainerExecutor</value>
+      </property>
+      <property>
+        <name>yarn.nodemanager.linux-container-executor.group</name>
+        <value>dcos</value>
+      </property>
+      <property>
+        <name>yarn.nodemanager.linux-container-executor.nonsecure-mode.limit-users</name>
+        <value>false</value>
+      </property>
+    </configuration>
+  webhdfs: |
+    https://master1:9871;https://master2:9871

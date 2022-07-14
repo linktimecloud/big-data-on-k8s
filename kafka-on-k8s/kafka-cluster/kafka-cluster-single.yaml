@@ -1,0 +1,66 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: kafka-cluster-strimzi
+spec:
+  kafka:
+    version: 2.8.1
+    image: {{kafka_image}}
+    replicas: 1
+    metricsConfig:
+      type: jmxPrometheusExporter
+      valueFrom:
+        configMapKeyRef:
+          name: kafka-metrics
+          key: kafka-metrics-config.yml
+    logging:
+      type: inline
+      loggers:
+        kafka.root.logger.level: "INFO"
+    #    resources:
+    #      requests:
+    #        memory: 1Gi
+    #        cpu: "0.2"
+    #      limits:
+    #        memory: 2Gi
+    #        cpu: "1"
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+    config:
+      log.message.format.version: '2.8'
+      inter.broker.protocol.version: '2.8'
+      log.retention.bytes: 1073741824
+      num.partitions: 1 #__PARTITIONS__
+      num.recovery.threads.per.data.dir: 1
+      default.replication.factor: 1 #REPLICATION
+      min.insync.replicas: 1
+      offsets.topic.replication.factor: 1 #__SYSTEM_TOPIC_REPLICATION__
+      transaction.state.log.replication.factor: 1 # __SYSTEM_TOPIC_REPLICATION__
+      transaction.state.log.min.isr: 1
+      log.retention.hours: 168 #__LOG_RETENTION_HOURS__
+      log.segment.bytes: 1073741824 #__LOG_SEGMENT_MAX_BYTES__
+      log.retention.check.interval.ms: 300000
+      num.network.threads: 6
+      num.io.threads: 8
+      num.replica.fetchers: 6
+      socket.send.buffer.bytes: 102400
+      socket.receive.buffer.bytes: 102400
+      socket.request.max.bytes: 1195725856
+      group.initial.rebalance.delay.ms: 0
+      zookeeper.connection.timeout.ms: 30000 # default 6000
+      zookeeper.session.timeout.ms: 30000 # default 6000
+      auto.create.topics.enable: true
+      delete.topic.enable: true
+    storage:
+      deleteClaim: false
+      size: 10Gi
+      type: persistent-claim
+  zookeeper:
+    replicas: 1
+    storage:
+      deleteClaim: false
+      size: 5Gi
+      type: persistent-claim

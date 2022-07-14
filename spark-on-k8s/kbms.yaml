@@ -1,0 +1,105 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kbms-role
+rules:
+- apiGroups:
+  - ""
+  - sparkoperator.k8s.io
+  resources:
+  - "pods"
+  - "services"
+  - "configmaps"
+  - "secrets"
+  - "sparkapplications"
+  - "pods/log"
+  - "events"
+  - "endpoints"
+  - "namespaces"
+  verbs:
+  - "*"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: default-kbms-role-binding
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: kbms-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-bigdata-manage-server-svc
+  namespace: default
+spec:
+  selector:
+    app: k8s-bigdata-manage-server
+  ports:
+    - protocol: TCP
+      port: 8400
+      targetPort: 8400
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kbms-deployment
+  namespace: default
+  labels:
+    app: k8s-bigdata-manage-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-bigdata-manage-server
+  template:
+    metadata:
+      labels:
+        app: k8s-bigdata-manage-server
+    spec:
+      containers:
+        - name: k8s-bigdata-manage-server
+          image: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/kbms:4.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8400
+          env:
+            - name: NAMESPACE
+              value: default
+            - name: SPARK_DOCKER_IMAGE
+              value: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/spark:v3.1.1.2-1.2.2-driver
+            - name: HADOOP_CONFIGMAP_NAME
+              value: my-hdfs-config
+            - name: SPARK_CONFIGMAP_NAME
+              value: spark-config
+            - name: SPARK_HISTORY_SERVER_URL
+              value: hdfs://default/historyservice/
+            - name: SPARK_OPERATOR_SERVICE_ACCOUNT
+              value: default
+            - name: DOCKER_IMAGE_SECRET
+              value: devregistry
+            - name: SIMPLE_MODE
+              value: 'true'
+          readinessProbe:
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            tcpSocket:
+              port: 8400
+          livenessProbe:
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            httpGet:
+              path: /ping
+              port: 8400
+              scheme: HTTP
+          startupProbe:
+            failureThreshold: 6
+            periodSeconds: 5
+            tcpSocket:
+              port: 8400

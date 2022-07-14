@@ -1,0 +1,205 @@
+# Provides datanode helper scripts.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "hdfs-k8s.datanode.fullname" . }}-scripts
+  labels:
+    app: {{ template "hdfs-k8s.datanode.name" . }}
+    chart: {{ template "hdfs-k8s.subchart" . }}
+    release: {{ .Release.Name }}
+data:
+  check-status.sh: |
+    #!/usr/bin/env bash
+    # Exit on error. Append "|| true" if you expect an error.
+    set -o errexit
+    # Exit on error inside any functions or subshells.
+    set -o errtrace
+    # Do not allow use of undefined vars. Use ${VAR:-} to use an undefined VAR
+    set -o nounset
+    # Catch an error in command pipes. e.g. mysqldump fails (but gzip succeeds)
+    # in `mysqldump |gzip`
+    set -o pipefail
+    # Turn on traces, useful while debugging.
+    set -o xtrace
+
+    # Check if datanode registered with the namenode and got non-null cluster ID.
+    # addr=$(hdfs getconf -confKey dfs.datanode.http.address)
+    addr="0.0.0.0:9864"
+    url="${addr}/jmx?qry=Hadoop:service=DataNode,name=DataNodeInfo"
+    cid=$(wget -q -O - ${url} | grep ClusterId | sed -E 's/^ *"ClusterId" *: *(.*),/\1/')
+    test "${cid}" != "null"
+---
+# Deleting a daemonset may need some trick. See
+# https://github.com/kubernetes/kubernetes/issues/33245#issuecomment-261250489
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ template "hdfs-k8s.datanode.fullname" . }}
+  labels:
+    app: {{ template "hdfs-k8s.datanode.name" . }}
+    chart: {{ template "hdfs-k8s.subchart" . }}
+    release: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "hdfs-k8s.datanode.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "hdfs-k8s.datanode.name" . }}
+        release: {{ .Release.Name }}
+      {{- if .Values.podAnnotations }}
+      annotations:
+{{ toYaml .Values.podAnnotations | indent 8 }}
+      {{- end }}
+    spec:
+      {{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+      {{- else if .Values.global.defaultAffinityEnabled }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                - key: {{ template "hdfs-k8s.datanode.fullname" . }}-exclude
+                  operator: DoesNotExist
+      {{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+      {{- end }}
+      hostNetwork: true
+      hostPID: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: datanode
+          image: {{ .Values.global.dockerRegistry }}/datanode:3.1.1-1.0.0
+          resources:
+            requests:
+              memory: "0Mi"
+              cpu: "0"
+            limits:
+              memory: "1024Mi"
+              cpu: "0"
+          env:
+            - name: HADOOP_CUSTOM_CONF_DIR
+              value: /etc/hadoop-custom-conf
+            - name: MULTIHOMED_NETWORK
+              value: "0"
+            {{- if and .Values.global.kerberosEnabled .Values.global.jsvcEnabled }}
+            - name: HDFS_DATANODE_SECURE_USER
+              value: root
+            - name: JSVC_OUTFILE
+              value: /dev/stdout
+            - name: JSVC_ERRFILE
+              value: /dev/stderr
+            {{- end }}
+            - name: KEYTAB_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: HTTP_PRINCIPAL
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          command: ["/entrypoint.sh"]
+          args: ["hdfs", "datanode"]
+          livenessProbe:
+            exec:
+              command:
+                - /dn-scripts/check-status.sh
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 30
+          readinessProbe:
+            exec:
+              command:
+                - /dn-scripts/check-status.sh
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 30
+          startupProbe:
+            initialDelaySeconds: 20
+            failureThreshold: 6
+            periodSeconds: 50
+            tcpSocket:
+              port: 9864
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: dn-scripts
+              mountPath: /dn-scripts
+              readOnly: true
+            - name: hdfs-config
+              mountPath: /etc/hadoop-custom-conf
+              readOnly: true
+            {{- range $index, $path := .Values.global.dataNodeHostPath }}
+            - name: hdfs-data-{{ $index }}
+              mountPath: /hadoop/dfs/data/{{ $index }}
+            {{- end }}
+            {{- if .Values.global.kerberosEnabled }}
+            - name: kerberos-config
+              mountPath: /etc/krb5.conf
+              subPath: {{ .Values.global.kerberosConfigFileName }}
+              readOnly: true
+            - name: kerberos-keytabs
+              mountPath: /etc/security/keytabs/
+              readOnly: true
+            {{- end }}
+            - name: logs
+              mountPath: /opt/hadoop/logs
+            - name: ssh-key
+              mountPath: /etc/ssh-key/id_rsa
+      # {{- if .Values.global.kerberosEnabled }}
+      # initContainers:
+      #   - name: copy-kerberos-keytab
+      #     image: busybox:1.27.1
+      #     command: ['sh', '-c']
+      #     args:
+      #       - cp /kerberos-keytabs/$MY_NODE_NAME.keytab /kerberos-keytab-copy/hdfs.keytab
+      #     env:
+      #       - name: MY_NODE_NAME
+      #         valueFrom:
+      #           fieldRef:
+      #             fieldPath: spec.nodeName
+      #     volumeMounts:
+      #       - name: kerberos-keytabs
+      #         mountPath: /kerberos-keytabs
+      #       - name: kerberos-keytab-copy
+      #         mountPath: /kerberos-keytab-copy
+      # {{- end }}
+      restartPolicy: Always
+      volumes:
+        - name: dn-scripts
+          configMap:
+            name: {{ template "hdfs-k8s.datanode.fullname" . }}-scripts
+            defaultMode: 0744
+        {{- range $index, $path := .Values.global.dataNodeHostPath }}
+        - name: hdfs-data-{{ $index }}
+          hostPath:
+            path: {{ $path }}
+        {{- end }}
+        - name: hdfs-config
+          configMap:
+            name: {{ template "hdfs-configmap" . }}
+        {{- if .Values.global.kerberosEnabled }}
+        - name: kerberos-config
+          configMap:
+            name: {{ template "krb5-configmap" . }}
+        - name: kerberos-keytabs
+          secret:
+            secretName: {{ template "krb5-keytabs-secret" . }}
+        # - name: kerberos-keytab-copy
+        #   emptyDir: {}
+        {{- end }}
+        - name: logs
+          emptyDir: {}
+        - name: ssh-key
+          hostPath:
+            path: /home/dcos/.ssh/id_rsa
