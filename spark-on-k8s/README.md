@@ -1,32 +1,30 @@
-# 安装步骤
+# Steps for deployment
 
-## 安装spark operator
+## Install spark operator
 
 ```shell
 bash install.sh
 ```
 
-## 安装kbms服务
+## Install kbms service
 
 ```shell
 kubectl apply -f kbms.yaml
 ```
 
-## 测试
-把demo.py和spark-submit.sh拷贝到linktime-hms-0 pod内，
+## Test Spark
+copy demo.py and spark-submit.sh into linktime-hms-0 pod,
 ```
 kubectl cp spark-on-k8s/demo.py  linktime-hms-0:/hms/.
 kubectl cp spark-on-k8s/spark-submit.sh  linktime-hms-0:/hms/.
 ```
-然后进入linktime-hms-0 pod，执行
+execute the following commands in linktime-hms-0 pod,
 ```
 /opt/hadoop/bin/hdfs dfs -mkdir /upload
 /opt/hadoop/bin/hdfs dfs -put /hms/demo.py /upload/.
 
 ```
-该过程即是用http服务提交spark作业。
 
-
-## 卸载
+## Uninstall
 kubectl delete -f kbms.yaml
 helm uninstall my-release
