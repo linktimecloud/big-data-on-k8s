@@ -168,6 +168,17 @@ Create the name for a Kubernetes Secret containing Kerberos keytabs.
 {{- end -}}
 {{- end -}}
 
+{{/*
+Create the name for a Kubernetes Secret containing SSH id_rsa, keystore, truststore.
+*/}}
+{{- define "ssh-secret" -}}
+{{- if .Values.global.sshSecretOverride -}}
+{{- .Values.global.sshSecretOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "hdfs-ssh" -}}
+{{- end -}}
+{{- end -}}
+
 
 {{/*
 Create the domain name part of services.
@@ -200,6 +211,17 @@ since that is the only special index that helm template gives us.
     {{- printf "%s-%d.%s-headless.%s:2181" $service $i $service $domain -}}
   {{- end -}}
 {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Zookeeper parent znode
+*/}}
+{{- define "zookeeper-parent-znode" -}}
+{{- if .Values.global.zookeeperParentZnode -}}
+{{- .Values.global.zookeeperParentZnode | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "/hadoop-ha/hdfs-k8s" -}}
 {{- end -}}
 {{- end -}}
 

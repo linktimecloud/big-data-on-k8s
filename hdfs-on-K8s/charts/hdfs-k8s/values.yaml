@@ -25,7 +25,7 @@ hdfs-config-k8s:
        hadoop.proxyuser.ec2-user.hosts: "*",
        hadoop.proxyuser.root.groups: "*",
        hadoop.proxyuser.root.hosts: "*",
-       hadoop.proxyuser.sqoop.groups": "*",
+       hadoop.proxyuser.sqoop.groups: "*",
        hadoop.proxyuser.sqoop.hosts: "*",
        hadoop.proxyuser.hue.groups: "*",
        hadoop.proxyuser.hue.hosts: "*",
@@ -70,14 +70,31 @@ hdfs-journalnode-k8s:
 
   ## Node labels and tolerations for pod assignment
   nodeSelector: {}
-  tolerations: [
-    {
-      key: node-role.kubernetes.io/master,
-      operator: Exists,
-      effect: NoSchedule
-    }
-  ]
+  tolerations: []
   affinity: {}
+
+  resources:
+    requests:
+      cpu: "0.2"
+      memory: "256Mi"
+    limits:
+      cpu: "1.0"
+      memory: "1024Mi"
+  
+  ## Array of snippets with your sidecar containers
+  sidecars: []
+  extraVolumes: []
+  extraVolumeMounts: []
+
+  ## Probes
+  livenessProbe:
+    tcpSocket:
+      port: 8485
+    periodSeconds: 30
+    initialDelaySeconds: 15
+  
+  readinessProbe: {}
+  startupProbe: {}
 
 ## ------------------------------------------------------------------------------
 ## hdfs-namenode-k8s:
@@ -120,18 +137,50 @@ hdfs-namenode-k8s:
   ## data locality as namenode will see pod virtual IPs and fails to equate them with
   ## cluster node physical IPs associated with data nodes.
   ## We currently disable this only for CI on minikube.
-  hostNetworkEnabled: false
+  # hostNetworkEnabled: true
 
   ## Node labels and tolerations for pod assignment
   nodeSelector: {}
-  tolerations: [
-    {
-      key: node-role.kubernetes.io/master,
-      operator: Exists,
-      effect: NoSchedule
-    }
-  ]
+  tolerations: []
   affinity: {}
+
+# jmx port
+  jmxPort: 54321
+
+  resources:
+    requests:
+      cpu: "0.2"
+      memory: "256Mi"
+    limits:
+      cpu: "1.0"
+      memory: "2048Mi"
+  
+  heapSize: 512
+  
+  ## Array of snippets with your sidecar containers
+  sidecars: []
+  extraVolumes: []
+  extraVolumeMounts: []
+
+  ## Probes
+  livenessProbe:
+    exec:
+      command:
+        - /nn-scripts/health-check.sh
+    periodSeconds: 30
+    initialDelaySeconds: 15
+    timeoutSeconds: 30
+
+  startupProbe:
+    exec:
+      command:
+        - /nn-scripts/health-check.sh
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    timeoutSeconds: 30
+    failureThreshold: 8
+  
+  readinessProbe: {}
 
 ## ------------------------------------------------------------------------------
 ## hdfs-simple-namenode-k8s:
@@ -151,11 +200,45 @@ hdfs-simple-namenode-k8s:
 ## hdfs-datanode-k8s:
 ## ------------------------------------------------------------------------------
 hdfs-datanode-k8s:
-  ## Node labels and tolerations for pod assignment
+persistence:
+    volumesCount: 1
+    accessMode: ReadWriteOnce
+    size: 10Gi
+
+    ## Node labels and tolerations for pod assignment
   nodeSelector: {}
   tolerations: []
   affinity: {}
 
+  # jmx port
+  jmxPort: 54322
+
+  replicas: 3
+
+  resources:
+    requests:
+      cpu: "0.2"
+      memory: "256Mi"
+    limits:
+      cpu: "1.0"
+      memory: "1024Mi"
+  
+  ## Array of snippets with your sidecar containers
+  sidecars: []
+  extraVolumes: []
+  extraVolumeMounts: []
+
+  ## Probes
+  livenessProbe:
+    exec:
+      command:
+        - /dn-scripts/check-status.sh
+    initialDelaySeconds: 60
+    periodSeconds: 60
+    timeoutSeconds: 30
+  
+  readinessProbe: {}
+  startupProbe: {}
 ## ------------------------------------------------------------------------------
 ## hdfs-krb5-k8s:
 ## ------------------------------------------------------------------------------
@@ -202,6 +285,7 @@ hdfs-krb5-k8s:
 ## Global values affecting all sub-charts:
 ## ------------------------------------------------------------------------------
 global:
+  hostNetworkEnabled: false
   ## A list of the local disk directories on cluster nodes that will contain the datanode
   ## blocks. These paths will be mounted to the datanode as K8s HostPath volumes.
   ## In a command line, the list should be enclosed in '{' and '}'.
@@ -230,6 +314,7 @@ global:
   ##
   # zookeeperQuorumOverride: zk-0.zk-svc.default.svc.cluster.local:2181,zk-1.zk-svc.default.svc.cluster.local:2181,zk-2.zk-svc.default.svc.cluster.local:2181
 
+  zookeeperParentZnode: /hadoop-ha/hdfs-k8s
   ## How many journal nodes to launch as a quorum. Used only when
   ## namenodeHAEnabled is set.
   journalnodeQuorumSize: 1
@@ -272,8 +357,17 @@ global:
   ## https://hadoop.apache.org/docs/r2.7.2/hadoop-project-dist/hadoop-common/SecureMode.html#Secure_DataNode
   jsvcEnabled: false
 
+  httpsEnables: false
   ## Docker registry
   dockerRegistry: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud
+  imageTag: 3.1.1-1.0.0
+
+  ## rbac
+  rbac:
+    create: false
+    serviceAccountName: hdfs
+    roleName: hdfs
+    roleBindingName: hdfs-role-binding
 
 ## Tags and conditions for triggering a group of relevant subcharts.
 tags:
@@ -285,3 +379,4 @@ tags:
 
   ## Trigger all subcharts required for non-HA setup. Disabled by default.
   simple: false
+
