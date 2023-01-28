@@ -364,7 +364,7 @@ global:
 
   ## rbac
   rbac:
-    create: false
+    create: true
     serviceAccountName: hdfs
     roleName: hdfs
     roleBindingName: hdfs-role-binding

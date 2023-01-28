@@ -22,7 +22,6 @@ data:
 
     function createSshSecret {
       ssh-keygen -q -t rsa -N '' -f ./id_rsa <<<y >/dev/null 2>&1
-
       kubectl create secret generic $SSH_SECRET_NAME -n $NAMESPACE \
         --from-file=id_rsa \
         --from-file=id_rsa.pub
@@ -56,16 +55,19 @@ spec:
         helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     spec:
       restartPolicy: Never
+      {{- if $.Values.global.rbac.create }}
+      serviceAccount: {{ .Values.global.rbac.serviceAccountName }}
+      {{ else }}
+      serviceAccount: default
+      {{- end }}
       containers:
       - name: generate-secret-job
-        image: "{{ .Values.global.dockerRegistry }}/hadoop-initial-job:{{ .Values.global.imageTag }}"
+        image: "{{ .Values.global.dockerRegistry }}/internal-kubectl:2.0"
         env:
           - name: SSH_SECRET_NAME
             value: {{ template "ssh-secret" . }}
           - name: NAMESPACE
             value: {{ .Release.Namespace }}
-          - name: APP_NAME
-            value: {{ .Release.Name }}
         command: ['/bin/sh', '-c']
         args:
           - "/job-scripts/pre-install.sh"
