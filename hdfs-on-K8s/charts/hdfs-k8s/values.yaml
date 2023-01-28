@@ -200,12 +200,12 @@ hdfs-simple-namenode-k8s:
 ## hdfs-datanode-k8s:
 ## ------------------------------------------------------------------------------
 hdfs-datanode-k8s:
-persistence:
+  persistence:
     volumesCount: 1
     accessMode: ReadWriteOnce
     size: 10Gi
 
-    ## Node labels and tolerations for pod assignment
+  ## Node labels and tolerations for pod assignment
   nodeSelector: {}
   tolerations: []
   affinity: {}

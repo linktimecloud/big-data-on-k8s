@@ -39,7 +39,7 @@ spec:
     app: {{ template "hdfs-k8s.journalnode.name" . }}
     release: {{ .Release.Name }}
 ---
-apiVersion: policy/v1beta1
+apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: {{ template "hdfs-k8s.journalnode.fullname" . }}
@@ -114,7 +114,7 @@ spec:
       {{- end }}
       containers:
         - name: hdfs-journalnode
-          image: "{{ .Values.global.dockerRegistry }}/journalnode:{{ .Values.global.imageTag }}"
+          image: "{{ .Values.global.dockerRegistry }}/namenode:{{ .Values.global.imageTag }}"
           resources:
             requests:
               memory: {{ .Values.resources.requests.memory }}
