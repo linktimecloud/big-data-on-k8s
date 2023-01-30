@@ -17,6 +17,10 @@ spec:
     name: fs
   - port: 9870
     name: http
+  - port: 9871
+    name: https
+  - port: {{ .Values.jmxPort }}
+    name: jmx
   clusterIP: None
   selector:
     app: {{ template "hdfs-k8s.namenode.name" . }}
@@ -36,6 +40,10 @@ spec:
       port: 9870
       targetPort: 9870
       name: http
+    - protocol: TCP
+      port: 9871
+      targetPort: 9871
+      name: https
     - protocol: TCP
       port: 8020
       targetPort: 8020
@@ -59,12 +67,16 @@ spec:
       port: 9870
       targetPort: 9870
       name: http
+    - protocol: TCP
+      port: 9871
+      targetPort: 9871
+      name: https
   selector:
     statefulset.kubernetes.io/pod-name: {{ template "namenode-pod-1" . }}
   type: ClusterIP
   sessionAffinity: None
 ---
-apiVersion: policy/v1
+apiVersion: policy/v1beta1
 kind: PodDisruptionBudget
 metadata:
   name: {{ template "hdfs-k8s.namenode.fullname" . }}
@@ -117,6 +129,13 @@ data:
     # Turn on traces, useful while debugging.
     set -o xtrace
 
+    sed -i -E "s#__REPLACE__POLICY_MGR_URL#${RANGER_URL:-http://ranger-admin-svc.admin.svc.cluster.local:6080}#g" /opt/ranger-2.1.0-hdfs-plugin/install.properties
+    sed -i -E "s#__REPLACE__REPOSITORY_NAME#${RANGER_REPOSITORY_NAME:-adminhadoopdev}#g" /opt/ranger-2.1.0-hdfs-plugin/install.properties
+    sed -i -E "s#__REPLACE__COMPONENT_INSTALL_DIR_NAME#${HADOOP_HOME}#g" /opt/ranger-2.1.0-hdfs-plugin/install.properties
+    sed -i -E "s#__REPLACE__CUSTOM_USER#${CUSTOM_USER:-root}#g" /opt/ranger-2.1.0-hdfs-plugin/install.properties
+    sed -i -E "s#__REPLACE__CUSTOM_GROUP#${CUSTOM_GROUP:-root}#g" /opt/ranger-2.1.0-hdfs-plugin/install.properties
+    /opt/ranger-2.1.0-hdfs-plugin/enable-hdfs-plugin.sh
+
     _NN_DIR=$(hdfs getconf -confKey dfs.namenode.name.dir | sed 's|^file://||')
     _METADATA_DIR="${_NN_DIR}"/current
     if [[ "$MY_POD" = "$NAMENODE_POD_0" ]]; then
@@ -164,6 +183,13 @@ data:
   # ad-hoc operation as specified by a user.
   custom-run.sh: {{ .Values.customRunScript | quote }}
 
+  # jmx config
+  namenode-jmx.yml: |
+    ssl: false
+    lowercaseOutputLabelNames: true
+    lowercaseOutputName: true
+    rules:
+      - pattern: ".*"
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -191,7 +217,13 @@ spec:
 {{ toYaml .Values.podAnnotations | indent 8 }}
       {{- end }}
     spec:
-      {{- if .Values.hostNetworkEnabled }}
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- range .Values.global.imagePullSecrets }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.global.hostNetworkEnabled }}
       # Use hostNetwork so datanodes connect to namenode without going through an overlay network
       # like weave. Otherwise, namenode fails to see physical IP address of datanodes.
       # Disabling this will break data locality as namenode will see pod virtual IPs and fails to
@@ -267,6 +299,8 @@ spec:
               value: .{{ .Release.Name }}-namenode.admin.svc.cluster.local
             - name: HADOOP_HEAPSIZE
               value: "{{ .Values.heapSize }}"
+            - name: HDFS_NAMENODE_OPTS
+              value: "-javaagent:/opt/jmx_prometheus_javaagent-0.17.0.jar={{ .Values.jmxPort }}:/nn-scripts/namenode-jmx.yml"
           command: ['/bin/sh', '-c']
           # The start script is provided by a config map.
           args:
@@ -276,6 +310,10 @@ spec:
             name: fs
           - containerPort: 9870
             name: http
+          - containerPort: 9871
+            name: https
+          - containerPort: {{ .Values.jmxPort }}
+            name: jmx
           {{- if .Values.livenessProbe }}
           livenessProbe:
 {{ toYaml .Values.livenessProbe | indent 12 }}

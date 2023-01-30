@@ -2,21 +2,28 @@ apiVersion: v1
 name: hdfs-k8s
 version: "1.0"
 dependencies:
-  - name: hdfs-config-k8s
-    version: "0.1.0"
-    repository: "file://../hdfs-config-k8s"
-    condition: condition.subchart.config
+  - name: zookeeper
+    version: "11.1.0"
+    repository: "file://../zookeeper"
+    condition: condition.subchart.zookeeper
     tags:
       - ha
       - kerberos
-      - simple
-  - name: hdfs-journalnode-k8s
-    version: "0.1.0"
-    repository: "file://../hdfs-journalnode-k8s"
-    condition: condition.subchart.journalnode
-    tags:
-      - ha
-      - kerberos
+  # - name: hdfs-config-k8s
+  #   version: "0.1.0"
+  #   repository: "file://../hdfs-config-k8s"
+  #   condition: condition.subchart.config
+  #   tags:
+  #     - ha
+  #     - kerberos
+  #     - simple
+  # - name: hdfs-journalnode-k8s
+  #   version: "0.1.0"
+  #   repository: "file://../hdfs-journalnode-k8s"
+  #   condition: condition.subchart.journalnode
+  #   tags:
+  #     - ha
+  #     - kerberos
   # - name: hdfs-namenode-k8s
   #   version: "0.1.0"
   #   repository: "file://../hdfs-namenode-k8s"
