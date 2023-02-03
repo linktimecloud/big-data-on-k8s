@@ -31,11 +31,11 @@ dependencies:
     tags:
       - ha
       - kerberos
-  # - name: hdfs-datanode-k8s
-  #   version: "0.1.0"
-  #   repository: "file://../hdfs-datanode-k8s"
-  #   condition: condition.subchart.datanode
-  #   tags:
-  #     - ha
-  #     - kerberos
-  #     - simple
+  - name: hdfs-datanode-k8s
+    version: "0.1.0"
+    repository: "file://../hdfs-datanode-k8s"
+    condition: condition.subchart.datanode
+    tags:
+      - ha
+      - kerberos
+      - simple

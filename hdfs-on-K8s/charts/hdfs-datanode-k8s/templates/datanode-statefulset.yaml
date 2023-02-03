@@ -23,14 +23,6 @@ data:
     state=$((cid_state+conn_state))
     exit $state
   
-  # jmx config
-  datanode-jmx.yml: |
-    ssl: false
-    lowercaseOutputLabelNames: true
-    lowercaseOutputName: true
-    rules:
-      - pattern: ".*"
-  
   run.sh: |
     hdfs --daemon start datanode
     sleep 30
@@ -157,8 +149,6 @@ spec:
             - name: JSVC_ERRFILE
               value: /dev/stderr
             {{- end }}
-            - name: HDFS_DATANODE_OPTS
-              value: "-javaagent:/opt/jmx_prometheus_javaagent-0.17.0.jar={{ .Values.jmxPort }}:/dn-scripts/datanode-jmx.yml"
             {{- if .Values.global.httpsEnables }}
             - name: HTTP_PROTOCAL
               value: https
@@ -168,9 +158,6 @@ spec:
             {{- end }}
           command: ["/entrypoint.sh"]
           args: ["/dn-scripts/run.sh"]
-          ports:
-          - containerPort: {{ .Values.jmxPort }}
-            name: jmx
           {{- if .Values.livenessProbe }}
           livenessProbe:
 {{ toYaml .Values.livenessProbe | indent 12 }}
@@ -220,7 +207,7 @@ spec:
         {{- end }}
       initContainers:
         - name: check-namenode
-          image: "{{ .Values.global.dockerRegistry }}/busybox:1.28"
+          image: "busybox:1.28"
           resources:
             requests:
               memory: "32Mi"
