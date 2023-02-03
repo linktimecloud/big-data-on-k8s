@@ -325,7 +325,7 @@ spec:
         {{- end }}
       initContainers:
         - name: check-journalnode
-          image: "{{ .Values.global.dockerRegistry }}/busybox:1.28"
+          image: "busybox:1.28"
           command:
             - sh
             - -c

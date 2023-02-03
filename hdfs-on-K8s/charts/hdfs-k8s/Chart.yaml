@@ -9,28 +9,28 @@ dependencies:
     tags:
       - ha
       - kerberos
-  # - name: hdfs-config-k8s
-  #   version: "0.1.0"
-  #   repository: "file://../hdfs-config-k8s"
-  #   condition: condition.subchart.config
-  #   tags:
-  #     - ha
-  #     - kerberos
-  #     - simple
-  # - name: hdfs-journalnode-k8s
-  #   version: "0.1.0"
-  #   repository: "file://../hdfs-journalnode-k8s"
-  #   condition: condition.subchart.journalnode
-  #   tags:
-  #     - ha
-  #     - kerberos
-  # - name: hdfs-namenode-k8s
-  #   version: "0.1.0"
-  #   repository: "file://../hdfs-namenode-k8s"
-  #   condition: condition.subchart.namenode
-  #   tags:
-  #     - ha
-  #     - kerberos
+  - name: hdfs-config-k8s
+    version: "0.1.0"
+    repository: "file://../hdfs-config-k8s"
+    condition: condition.subchart.config
+    tags:
+      - ha
+      - kerberos
+      - simple
+  - name: hdfs-journalnode-k8s
+    version: "0.1.0"
+    repository: "file://../hdfs-journalnode-k8s"
+    condition: condition.subchart.journalnode
+    tags:
+      - ha
+      - kerberos
+  - name: hdfs-namenode-k8s
+    version: "0.1.0"
+    repository: "file://../hdfs-namenode-k8s"
+    condition: condition.subchart.namenode
+    tags:
+      - ha
+      - kerberos
   # - name: hdfs-datanode-k8s
   #   version: "0.1.0"
   #   repository: "file://../hdfs-datanode-k8s"

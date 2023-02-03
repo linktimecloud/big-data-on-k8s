@@ -301,7 +301,7 @@ global:
     fsGroup: 1000
 
   ## Whether or not to expect namenodes in the HA setup.
-  namenodeHAEnabled: false
+  namenodeHAEnabled: true
 
   ## The number of zookeeper server to have in the quorum.
   ## This should match zookeeper.replicaCount above. Used only when
@@ -317,7 +317,7 @@ global:
   zookeeperParentZnode: /hadoop-ha/hdfs-k8s
   ## How many journal nodes to launch as a quorum. Used only when
   ## namenodeHAEnabled is set.
-  journalnodeQuorumSize: 1
+  journalnodeQuorumSize: 3
 
   ## Whether or not to enable default affinity setting.
   defaultAffinityEnabled: true
