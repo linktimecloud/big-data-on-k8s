@@ -1,5 +1,47 @@
 apiVersion: v1
-appVersion: "1.0"
-description: An entry-point Helm chart for launching HDFS on Kubernetes
-name: hdfs
-version: 0.1.0
+name: hdfs-k8s
+version: "1.0"
+dependencies:
+  - name: zookeeper
+    version: "11.1.0"
+    repository: "file://../zookeeper"
+    condition: condition.subchart.zookeeper
+    tags:
+      - ha
+      - kerberos
+  - name: hdfs-config-k8s
+    version: "0.1.0"
+    repository: "file://../hdfs-config-k8s"
+    condition: condition.subchart.config
+    tags:
+      - ha
+      - kerberos
+      - simple
+  - name: hdfs-journalnode-k8s
+    version: "0.1.0"
+    repository: "file://../hdfs-journalnode-k8s"
+    condition: condition.subchart.journalnode
+    tags:
+      - ha
+      - kerberos
+  - name: hdfs-namenode-k8s
+    version: "0.1.0"
+    repository: "file://../hdfs-namenode-k8s"
+    condition: condition.subchart.namenode
+    tags:
+      - ha
+      - kerberos
+  - name: hdfs-datanode-k8s
+    version: "0.1.0"
+    repository: "file://../hdfs-datanode-k8s"
+    condition: condition.subchart.datanode
+    tags:
+      - ha
+      - kerberos
+      - simple
+  - name: hdfs-simple-namenode-k8s
+    version: "0.1.0"
+    repository: "file://../hdfs-simple-namenode-k8s"
+    condition: condition.subchart.namenode
+    tags:
+      - simple

@@ -1,11 +1,13 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ template "hdfs-k8s.config.fullname" . }}
+  name: {{ template "hdfs-configmap" . }}
   labels:
     app: {{ template "hdfs-k8s.client.name" . }}
     chart: {{ template "hdfs-k8s.subchart" . }}
     release: {{ .Release.Name }}
+  annotations:
+    kubed.appscode.com/sync: env=production
 data:
   core-site.xml: |
     <?xml version="1.0"?>
@@ -31,7 +33,7 @@ data:
       -->
       <property>
         <name>hadoop.security.authorization</name>
-        <value>true</value>
+        <value>{{ template "hadoop-security-authorization" . }}</value>
       </property>
       <property>
         <name>hadoop.rpc.protection</name>
@@ -59,7 +61,7 @@ data:
       </property>
       <property>
         <name>ha.zookeeper.parent-znode</name>
-        <value>/hadoop-ha/hdfs-k8s</value>
+        <value>{{ template "zookeeper-parent-znode" . }}</value>
       </property>
     {{- else }}
       <property>
@@ -91,7 +93,7 @@ data:
       </property>
       <property>
         <name>dfs.encrypt.data.transfer</name>
-        <value>true</value>
+        <value>false</value>
       </property>
       <property>
         <name>dfs.namenode.delegation.token.max-lifetime</name>
@@ -166,14 +168,11 @@ data:
         <name>dfs.datanode.http.address</name>
         <value>0.0.0.0:1006</value>
       </property>
-      {{- else }}
+      {{- end }}
+      {{- if .Values.global.httpsEnables }}
       <property>
         <name>dfs.http.policy</name>
         <value>HTTPS_ONLY</value>
-      </property>
-      <property>
-        <name>dfs.datanode.address</name>
-        <value>0.0.0.0:5001</value>
       </property>
       <property>
         <name>dfs.data.transfer.protection</name>
@@ -221,7 +220,7 @@ data:
       </property>
       <property>
         <name>dfs.ha.fencing.ssh.private-key-files</name>
-        <value>/etc/security/keytabs/id_rsa</value>
+        <value>/etc/security/ssh/id_rsa</value>
       </property>
       <property>
         <name>dfs.journalnode.edits.dir</name>
@@ -264,116 +263,16 @@ data:
         <name>dfs.datanode.data.dir</name>
         <value>{{ template "datanode-data-dirs" . }}</value>
       </property>
-    </configuration>
-  yarn-site.xml: |
-    <?xml version="1.0"?>
-    <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
-    <configuration>
+    {{- if not .Values.global.hostNetworkEnabled }}
       <property>
-        <name>yarn.nodemanager.aux-services</name>
-        <value>mapreduce_shuffle</value>
-      </property>
-      <property>
-        <name>yarn.nodemanager.aux-services.mapreduce.shuffle.class</name>
-        <value>org.apache.hadoop.mapred.ShuffleHandler</value>
-      </property>
-      <property>
-        <name>yarn.resourcemanager.address</name>
-        <value>{{ template "namenode-svc-1" . }}:8032</value>
-      </property>
-      <property>
-        <name>yarn.resourcemanager.scheduler.address</name>
-        <value>{{ template "namenode-svc-1" . }}:8030</value>
-      </property>
-      <property>
-        <name>yarn.resourcemanager.resource-tracker.address</name>
-        <value>{{ template "namenode-svc-1" . }}:8031</value>
-      </property>
-      <property>
-        <name>yarn.resourcemanager.admin.address</name>
-        <value>{{ template "namenode-svc-1" . }}:8033</value>
-      </property>
-      <property>
-        <name>yarn.resourcemanager.webapp.address</name>
-        <value>{{ template "namenode-svc-1" . }}:8088</value>
-      </property>
-      <property>
-        <name>yarn.resourcemanager.bind-host</name>
-        <value>0.0.0.0</value>
-      </property>
-      <property>
-        <name>yarn.nodemanager.bind-host</name>
-        <value>0.0.0.0</value>
-      </property>
-      <property>
-        <name>yarn.nodemanager.resource.memory-mb</name>
-        <value>4096</value>
-        <description>Amount of physical memory, in MB, that can be allocated for containers.</description>
-      </property>
-      <property>
-        <name>yarn.scheduler.maximum-allocation-mb</name>
-        <value>3072</value>
-        <description>The maximum allocation for every container request at the RM, in MBs. Memory requests higher than this won't take effect, and will get capped to this value.</description>
-      </property>
-      <property>
-        <name>yarn.scheduler.minimum-allocation-mb</name>
-        <value>512</value>
-        <description>The minimum allocation for every container request at the RM, in MBs. Memory requests lower than this won't take effect, and the specified value will get allocated at minimum.</description>
-      </property>
-      <property>
-        <name>yarn.resourcemanager.scheduler.class</name>
-        <value>org.apache.hadoop.yarn.server.resourcemanager.scheduler.fair.FairScheduler</value>
-      </property>
-      <property>
-        <name>yarn.scheduler.fair.allocation.file</name>
-        <value>/opt/hadoop/etc/hadoop/fair_scheduler.xml</value>
-      </property>
-      <property>
-        <name>yarn.nodemanager.vmem-check-enabled</name>
-        <value>false</value>
-        <description>Whether virtual memory limits will be enforced for containers</description>
-      </property>
-      <property>
-        <name>yarn.nodemanager.vmem-pmem-ratio</name>
-        <value>20</value>
-        <description>Ratio between virtual memory to physical memory when setting memory limits for containers</description>
-      </property>
-      <property>
-        <name>yarn.log-aggregation-enable</name>
+        <name>dfs.client.use.datanode.hostname</name>
         <value>true</value>
       </property>
       <property>
-        <name>yarn.log-aggregation.retain-seconds</name>
-        <value>302400</value>
-      </property>
-      <property>
-        <name>yarn.resourcemanager.principal</name>
-        <value>hadoop/hadoop@LINKTIME.CLOUD</value>
-      </property>
-      <property>
-        <name>yarn.resourcemanager.keytab</name>
-        <value>/etc/security/keytabs/hadoop.keytab</value>
-      </property>
-      <property>
-        <name>yarn.nodemanager.principal</name>
-        <value>hadoop/hadoop@LINKTIME.CLOUD</value>
-      </property>
-      <property>
-        <name>yarn.nodemanager.keytab</name>
-        <value>/etc/security/keytabs/hadoop.keytab</value>
-      </property>
-      <property>
-        <name>yarn.nodemanager.container-executor.class</name>
-        <value>org.apache.hadoop.yarn.server.nodemanager.LinuxContainerExecutor</value>
-      </property>
-      <property>
-        <name>yarn.nodemanager.linux-container-executor.group</name>
-        <value>dcos</value>
-      </property>
-      <property>
-        <name>yarn.nodemanager.linux-container-executor.nonsecure-mode.limit-users</name>
+        <name>dfs.datanode.use.datanode.hostname</name>
         <value>false</value>
       </property>
+    {{- end }}
     </configuration>
   webhdfs: |
-    https://master1:9871;https://master2:9871
+    http://httpfs-gateway-svc.admin.svc.cluster.local:14000

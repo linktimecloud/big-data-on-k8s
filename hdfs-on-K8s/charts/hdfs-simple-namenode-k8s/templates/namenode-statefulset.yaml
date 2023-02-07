@@ -22,48 +22,6 @@ spec:
     app: {{ template "hdfs-k8s.namenode.name" . }}
     release: {{ .Release.Name }}
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ template "namenode-pod-0" . }}-svc
-  labels:
-    app: {{ template "hdfs-k8s.namenode.name" . }}
-    chart: {{ template "hdfs-k8s.subchart" . }}
-    release: {{ .Release.Name }}
-spec:
-  ports:
-    - protocol: TCP
-      port: 9870
-      targetPort: 9870
-      name: http
-    - protocol: TCP
-      port: 8020
-      targetPort: 8020
-      name: rpc
-  selector:
-    statefulset.kubernetes.io/pod-name: {{ template "namenode-pod-0" . }}
-  type: ClusterIP
-  sessionAffinity: None
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ template "namenode-pod-1" . }}-svc
-  labels:
-    app: {{ template "hdfs-k8s.namenode.name" . }}
-    chart: {{ template "hdfs-k8s.subchart" . }}
-    release: {{ .Release.Name }}
-spec:
-  ports:
-    - protocol: TCP
-      port: 9870
-      targetPort: 9870
-      name: http
-  selector:
-    statefulset.kubernetes.io/pod-name: {{ template "namenode-pod-1" . }}
-  type: ClusterIP
-  sessionAffinity: None
----
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -119,39 +77,20 @@ data:
 
     _NN_DIR=$(hdfs getconf -confKey dfs.namenode.name.dir | sed 's|^file://||')
     _METADATA_DIR="${_NN_DIR}"/current
-    if [[ "$MY_POD" = "$NAMENODE_POD_0" ]]; then
-      if [[ ! -d $_METADATA_DIR ]]; then
-          hdfs namenode -format  \
-              -nonInteractive ||
-              (rm -rf $_METADATA_DIR; exit 1)
-      fi
-      _ZKFC_FORMATTED="${_METADATA_DIR}"/.hdfs-k8s-zkfc-formatted
-      if [[ ! -f $_ZKFC_FORMATTED ]]; then
-        _OUT=$(hdfs zkfc -formatZK -nonInteractive 2>&1)
-        # zkfc masks fatal exceptions and returns exit code 0
-        (echo $_OUT | grep -q "FATAL") && exit 1
-        touch $_ZKFC_FORMATTED
-      fi
-    elif [[ "$MY_POD" = "$NAMENODE_POD_1" ]]; then
-      if [[ ! -d $_METADATA_DIR ]]; then
-        hdfs namenode -bootstrapStandby  \
-            -nonInteractive ||  \
+    if [[ ! -d $_METADATA_DIR ]]; then
+        hdfs namenode -format  \
+            -nonInteractive ||
             (rm -rf $_METADATA_DIR; exit 1)
-      fi
     fi
     hdfs --daemon start namenode
-    hdfs --daemon start zkfc
     sleep 10
     tail -f ${HADOOP_LOG_DIR:-${HADOOP_HOME}/logs}/hadoop-*-namenode-*.log
   
   health-check.sh: |
     #!/usr/bin/env bash
-    last_line=`tail -n 1 ${HADOOP_LOG_DIR:-${HADOOP_HOME}/logs}/hadoop-*-zkfc-*.log | grep Successfully`
-    test "${last_line}" != ""
-    zkfc_state=$?
     timeout 2 bash -c "</dev/tcp/localhost/8020"
     rpc_state=$?
-    state=$((zkfc_state+rpc_state))
+    state=$((rpc_state))
     exit $state
 
   # A start script that will just hang indefinitely. A user can then get
@@ -160,22 +99,18 @@ data:
     #!/usr/bin/env bash
     tail -f /dev/null
 
-  # A start script that has user specified content. Can be used to conduct
-  # ad-hoc operation as specified by a user.
-  custom-run.sh: {{ .Values.customRunScript | quote }}
-
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ template "hdfs-k8s.namenode.fullname" . }}
+  name: {{ template "hdfs-k8s.namenode.fullname" . }} 
   labels:
     app: {{ template "hdfs-k8s.namenode.name" . }}
     chart: {{ template "hdfs-k8s.subchart" . }}
     release: {{ .Release.Name }}
 spec:
   serviceName: {{ template "hdfs-k8s.namenode.fullname" . }}
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: {{ template "hdfs-k8s.namenode.name" . }}
@@ -251,22 +186,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: NAMENODE_POD_0
-              value: {{ template "namenode-pod-0" . }}
-            - name: NAMENODE_POD_1
-              value: {{ template "namenode-pod-1" . }}
-            - name: KEYTAB_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: HTTP_PRINCIPAL
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: PRINCIPAL_SUFFIX
-              value: .{{ .Release.Name }}-namenode.admin.svc.cluster.local
-            - name: HADOOP_HEAPSIZE
-              value: "{{ .Values.heapSize }}"
           command: ['/bin/sh', '-c']
           # The start script is provided by a config map.
           args:
@@ -301,45 +220,12 @@ spec:
             - name: hdfs-config
               mountPath: /etc/hadoop-custom-conf
               readOnly: true
-            {{- if .Values.global.kerberosEnabled }}
-            - name: kerberos-config
-              mountPath: /etc/krb5.conf
-              subPath: {{ .Values.global.kerberosConfigFileName }}
-              readOnly: true
-            - name: kerberos-keytabs
-              mountPath: /etc/security/keytabs/
-              readOnly: true
-            {{- end }}
-            - name: ssh-files
-              mountPath: /root/.ssh/id_rsa.pub
-              subPath: id_rsa.pub
-              readOnly: true
-            - name: ssh-files
-              mountPath: /etc/security/ssh/
-              readOnly: true
             {{- if .Values.extraVolumeMounts }}
             {{ toYaml .Values.extraVolumeMounts | nindent 12 }}
             {{- end }}
         {{- if .Values.sidecars }}
 {{- toYaml .Values.sidecars | nindent 8 }}
         {{- end }}
-      initContainers:
-        - name: check-journalnode
-          image: "busybox:1.28"
-          command:
-            - sh
-            - -c
-            - |
-              hosts=`echo $JOURNALNODE_QUORUM | sed -e "s/:8485;/ /g" -e "s/:8485//"`
-              for host in $hosts; do
-                until nslookup $host; do
-                  echo waiting for $host;
-                  sleep 2;
-                done
-              done
-          env:
-            - name: JOURNALNODE_QUORUM
-              value: {{ template "journalnode-quorum" . }}
       restartPolicy: Always
       {{- if $.Values.global.rbac.create }}
       serviceAccount: {{ .Values.global.rbac.serviceAccountName }}
@@ -354,17 +240,6 @@ spec:
         - name: hdfs-config
           configMap:
             name: {{ template "hdfs-configmap" . }}
-        {{- if .Values.global.kerberosEnabled }}
-        - name: kerberos-config
-          configMap:
-            name: {{ template "krb5-configmap" . }}
-        {{- end }}
-        - name: kerberos-keytabs
-          secret:
-            secretName: {{ template "krb5-keytabs-secret" . }}
-        - name: ssh-files
-          secret:
-            secretName: {{ template "ssh-secret" . }}
         {{- if .Values.extraVolumes }}
         {{ toYaml .Values.extraVolumes | nindent 8}}
         {{- end }}
