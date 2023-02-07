@@ -71,6 +71,17 @@ kubectl port-forward my-hdfs-namenode-0 50070:9870
 Then open a browser with the following url:<br>
 http://127.0.0.1:50070/dfshealth.html#tab-datanode<br>
 We should see that all the datanodes are running normally.
+<br><br>
+To run HDFS with HA, we have to make the following changes in hdfs-on-k8s/charts/hdfs-k8s/values.yaml before we execute deploy.sh:
+```
+global:
+  namenodeHAEnabled: true
+
+tags:
+  ha: true
+  kerberos: false
+  simple: false
+```
 
 ### 3. Start Hive(about 18 mins)
 ```
@@ -143,8 +154,22 @@ bash mysql-on-k8s/undeploy.sh
 If you want to cleanup PVC and PV(not necessary), run:
 ```
 kubectl delete pvc metadatadir-my-hdfs-namenode-0
+kubectl delete pvc hdfs-data-0-my-hdfs-datanode-0
+kubectl delete pvc hdfs-data-0-my-hdfs-datanode-1
+kubectl delete pvc hdfs-data-0-my-hdfs-datanode-2
 kubectl delete pvc mysql-storage-mysql-0
 ```
+If you run HDFS with HA and want to cleanup all PVCs, run:
+```
+kubectl delete pvc data-my-hdfs-zookeeper-0
+kubectl delete pvc data-my-hdfs-zookeeper-1
+kubectl delete pvc data-my-hdfs-zookeeper-2
+kubectl delete pvc editdir-my-hdfs-journalnode-0
+kubectl delete pvc editdir-my-hdfs-journalnode-1
+kubectl delete pvc editdir-my-hdfs-journalnode-2
+kubectl delete pvc metadatadir-my-hdfs-namenode-1
+```
+
 ## Deploy a Kafka cluster on K8s
 ### 1. Setup environment variables
 ```

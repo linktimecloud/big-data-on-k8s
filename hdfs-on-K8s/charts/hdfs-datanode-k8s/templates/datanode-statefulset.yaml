@@ -229,7 +229,7 @@ spec:
           env:
             {{- if .Values.global.namenodeHAEnabled }}
             - name: NAMENODES
-              value: "{{ template "namenode-svc-0" . }} {{ template "namenode-svc-1" . }}"\
+              value: "{{ template "namenode-svc-0" . }} {{ template "namenode-svc-1" . }}"
             {{- else }}            
             - name: NAMENODES
               value: {{ template "namenode-svc-0" . }}
