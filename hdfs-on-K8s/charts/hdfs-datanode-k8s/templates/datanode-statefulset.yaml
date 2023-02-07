@@ -219,7 +219,7 @@ spec:
             - sh
             - -c
             - |
-              hosts="$NAMENODE_SVC_0 $NAMENODE_SVC_1"
+              hosts="$NAMENODES"
               for host in $hosts; do
                 until nslookup $host; do
                   echo waiting for $host;
@@ -227,48 +227,13 @@ spec:
                 done
               done
           env:
-            - name: NAMENODE_SVC_0
+            {{- if .Values.global.namenodeHAEnabled }}
+            - name: NAMENODES
+              value: "{{ template "namenode-svc-0" . }} {{ template "namenode-svc-1" . }}"\
+            {{- else }}            
+            - name: NAMENODES
               value: {{ template "namenode-svc-0" . }}
-            - name: NAMENODE_SVC_1
-              value: {{ template "namenode-svc-1" . }}
-        {{- if .Values.migrateHostData }}
-        - name: data-migration
-          image: "{{ .Values.global.dockerRegistry }}/secoresearch/rsync"
-          securityContext:
-            privileged: true
-            runAsUser: 0
-          resources:
-            requests:
-              memory: "32Mi"
-              cpu: "0.1"
-            limits:
-              memory: "128Mi"
-              cpu: "0.5"
-          command:
-            - /bin/bash
-            - -c
-            - |
-              n=0
-              while (( $n < $VOLUMES_COUNT ))
-              do
-                source="/hadoop/dfs/host-data/$n/"
-                target="/hadoop/dfs/data/$n/"
-                rsync -vahu --progress $source $target
-                n=$(( n+1 ))
-              done
-          volumeMounts:
-            {{- range $k, $v := until (int .Values.persistence.volumesCount) }}
-            - name: hdfs-data-{{ $v }}
-              mountPath: /hadoop/dfs/data/{{ $v }}
             {{- end }}
-            {{- range $index, $path := .Values.global.dataNodeHostPath }}
-            - name: hdfs-host-data-{{ $index }}
-              mountPath: /hadoop/dfs/host-data/{{ $index }}
-            {{- end }}
-          env:
-            - name: VOLUMES_COUNT
-              value: "{{ .Values.persistence.volumesCount }}"
-        {{- end }}
       restartPolicy: Always
       {{- if $.Values.global.rbac.create }}
       serviceAccount: {{ .Values.global.rbac.serviceAccountName }}
@@ -294,13 +259,6 @@ spec:
         - name: ssh-files
           secret:
             secretName: {{ template "ssh-secret" . }}
-        {{- if .Values.migrateHostData }}
-        {{- range $index, $path := .Values.global.dataNodeHostPath }}
-        - name: hdfs-host-data-{{ $index }}
-          hostPath:
-            path: {{ $path }}
-        {{- end }}
-        {{- end }}
         {{- if .Values.extraVolumes }}
         {{ toYaml .Values.extraVolumes | nindent 8}}
         {{- end }}

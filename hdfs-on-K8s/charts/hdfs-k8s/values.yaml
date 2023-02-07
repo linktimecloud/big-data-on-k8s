@@ -186,15 +186,61 @@ hdfs-namenode-k8s:
 ## hdfs-simple-namenode-k8s:
 ## ------------------------------------------------------------------------------
 hdfs-simple-namenode-k8s:
-  ## Path of the local disk directory on a cluster node that will contain the namenode
-  ## fsimage and edit logs. This will be mounted to the namenode as a k8s HostPath
-  ## volume.
-  nameNodeHostPath: /hdfs-name
+  ## Name of the namenode start script in the config map.
+  namenodeStartScript: format-and-run.sh
 
-  ## Node labels and tolerations for pod assignment
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
+  persistence:
+    ## Persistent Volume Storage Class
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+    ##   GKE, AWS & OpenStack)
+    ##
+    # storageClass: "-"
+
+    ## To choose a suitable persistent volume from available static volumes, selectors
+    ## are used.
+    # selector:
+    #   matchLabels:
+    #     volume-type: hdfs-ssd
+
+    accessMode: ReadWriteOnce
+
+    size: 10Gi
+  
+  resources:
+    requests:
+      cpu: "0.2"
+      memory: "256Mi"
+    limits:
+      cpu: "1.0"
+      memory: "2048Mi"
+
+  ## Array of snippets with your sidecar containers
+  sidecars: []
+  extraVolumes: []
+  extraVolumeMounts: []
+
+  ## Probes
+  livenessProbe:
+    exec:
+      command:
+        - /nn-scripts/health-check.sh
+    periodSeconds: 30
+    initialDelaySeconds: 15
+    timeoutSeconds: 30
+
+  startupProbe:
+    exec:
+      command:
+        - /nn-scripts/health-check.sh
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    timeoutSeconds: 30
+    failureThreshold: 8
+  
+  readinessProbe: {}
 
 ## ------------------------------------------------------------------------------
 ## hdfs-datanode-k8s:
@@ -301,7 +347,7 @@ global:
     fsGroup: 1000
 
   ## Whether or not to expect namenodes in the HA setup.
-  namenodeHAEnabled: true
+  namenodeHAEnabled: false
 
   ## The number of zookeeper server to have in the quorum.
   ## This should match zookeeper.replicaCount above. Used only when
@@ -372,11 +418,11 @@ global:
 ## Tags and conditions for triggering a group of relevant subcharts.
 tags:
   ## Trigger all subcharts required for high availability. Enabled by default.
-  ha: true
+  ha: false
 
   ## Trigger all subcharts required for using Kerberos. Disabled by default.
-  kerberos: true
+  kerberos: false
 
   ## Trigger all subcharts required for non-HA setup. Disabled by default.
-  simple: false
+  simple: true
 

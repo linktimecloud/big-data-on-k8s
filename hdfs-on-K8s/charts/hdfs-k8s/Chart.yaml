@@ -39,3 +39,9 @@ dependencies:
       - ha
       - kerberos
       - simple
+  - name: hdfs-simple-namenode-k8s
+    version: "0.1.0"
+    repository: "file://../hdfs-simple-namenode-k8s"
+    condition: condition.subchart.namenode
+    tags:
+      - simple
