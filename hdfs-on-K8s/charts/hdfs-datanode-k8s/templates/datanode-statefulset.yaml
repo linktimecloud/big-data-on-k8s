@@ -1,0 +1,286 @@
+# Provides datanode helper scripts.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "hdfs-k8s.datanode.fullname" . }}-scripts
+  labels:
+    app: {{ template "hdfs-k8s.datanode.name" . }}
+    chart: {{ template "hdfs-k8s.subchart" . }}
+    release: {{ .Release.Name }}
+data:
+  check-status.sh: |
+    #!/usr/bin/env bash
+    # Check if datanode registered with the namenode and got non-null cluster ID.
+    addr=$(hdfs getconf -confKey "dfs.datanode.${HTTP_PROTOCAL}.address")
+    url="${HTTP_PROTOCAL}://${addr}/jmx?qry=Hadoop:service=DataNode,name=DataNodeInfo"
+    cid=$(curl -kqs "${url}" | grep ClusterId | sed -E 's/^ *"ClusterId" *: *(.*),/\1/')
+    test "${cid}" != "null"
+    cid_state=$?
+    # Check if datanode has problem connecting to server
+    err=`tail -n 5 ${HADOOP_LOG_DIR:-${HADOOP_HOME:-/opt/hadoop}/logs}/hadoop-*-datanode-*.log | grep "WARN org.apache.hadoop.hdfs.server.datanode.DataNode: Problem connecting to server"`
+    test -z "$err"
+    conn_state=$?
+    state=$((cid_state+conn_state))
+    exit $state
+  
+  run.sh: |
+    hdfs --daemon start datanode
+    sleep 30
+    tail -f ${HADOOP_LOG_DIR:-${HADOOP_HOME}/logs}/hadoop-*-datanode-*.log
+---
+# A headless service to create DNS records.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "hdfs-k8s.datanode.fullname" . }}
+  labels:
+    app: {{ template "hdfs-k8s.datanode.name" . }}
+    chart: {{ template "hdfs-k8s.subchart" . }}
+    release: {{ .Release.Name }}
+  annotations:
+    # TODO: Deprecated. Replace tolerate-unready-endpoints with
+    # v1.Service.PublishNotReadyAddresses.
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+spec:
+  ports:
+  - name: dn-rpc
+    {{- if .Values.global.jsvcEnabled }}
+    port: 1004
+    {{- else }}
+    port: 9866
+    {{- end }}
+  - name: dn-http
+    {{- if .Values.global.jsvcEnabled }}
+    port: 1006
+    {{- else }}
+    port: 9864
+    {{- end }}
+  clusterIP: None
+  selector:
+    app: {{ template "hdfs-k8s.datanode.name" . }}
+    release: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "hdfs-k8s.datanode.fullname" . }}
+  labels:
+    app: {{ template "hdfs-k8s.datanode.name" . }}
+    chart: {{ template "hdfs-k8s.subchart" . }}
+    release: {{ .Release.Name }}
+spec:
+  serviceName: {{ template "hdfs-k8s.datanode.fullname" . }}
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ template "hdfs-k8s.datanode.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "hdfs-k8s.datanode.name" . }}
+        release: {{ .Release.Name }}
+        hdfs-metrics: "true"
+      {{- if .Values.podAnnotations }}
+      annotations:
+{{ toYaml .Values.podAnnotations | indent 8 }}
+      {{- end }}
+    spec:
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- range .Values.global.imagePullSecrets }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+      {{- else if .Values.global.defaultAffinityEnabled }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                      - {{ template "hdfs-k8s.datanode.name" . }}
+                  - key: "release"
+                    operator: In
+                    values:
+                      - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
+      {{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+      {{- end }}
+      {{- if .Values.global.hostNetworkEnabled }}
+      hostNetwork: true
+      hostPID: true
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- else }}
+      dnsPolicy: ClusterFirst
+      {{- end }}
+      containers:
+        - name: datanode
+          image: "{{ .Values.global.dockerRegistry }}/datanode:{{ .Values.global.imageTag }}"
+          resources:
+            requests:
+              memory: {{ .Values.resources.requests.memory }}
+              cpu: {{ .Values.resources.requests.cpu }}
+            limits:
+              memory: {{ .Values.resources.limits.memory }}
+              cpu: {{ .Values.resources.limits.cpu }}
+          env:
+            - name: HADOOP_CUSTOM_CONF_DIR
+              value: /etc/hadoop-custom-conf
+            - name: MULTIHOMED_NETWORK
+              value: "0"
+            {{- if and .Values.global.kerberosEnabled .Values.global.jsvcEnabled }}
+            - name: HDFS_DATANODE_SECURE_USER
+              value: root
+            - name: JSVC_OUTFILE
+              value: /dev/stdout
+            - name: JSVC_ERRFILE
+              value: /dev/stderr
+            {{- end }}
+            {{- if .Values.global.httpsEnables }}
+            - name: HTTP_PROTOCAL
+              value: https
+            {{- else }}
+            - name: HTTP_PROTOCAL
+              value: http
+            {{- end }}
+          command: ["/entrypoint.sh"]
+          args: ["/dn-scripts/run.sh"]
+          {{- if .Values.livenessProbe }}
+          livenessProbe:
+{{ toYaml .Values.livenessProbe | indent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe }}
+          readinessProbe:
+{{ toYaml .Values.readinessProbe | indent 12 }}
+          {{- end }}
+          {{- if .Values.startupProbe }}
+          startupProbe:
+{{ toYaml .Values.startupProbe | indent 12 }}
+          {{- end }}
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: dn-scripts
+              mountPath: /dn-scripts
+              readOnly: true
+            - name: hdfs-config
+              mountPath: /etc/hadoop-custom-conf
+              readOnly: true
+            {{- range $k, $v := until (int .Values.persistence.volumesCount) }}
+            - name: hdfs-data-{{ $v }}
+              mountPath: /hadoop/dfs/data/{{ $v }}
+            {{- end }}
+            {{- if .Values.global.kerberosEnabled }}
+            - name: kerberos-config
+              mountPath: /etc/krb5.conf
+              subPath: {{ .Values.global.kerberosConfigFileName }}
+              readOnly: true
+            - name: kerberos-keytabs
+              mountPath: /etc/security/keytabs/
+              readOnly: true
+            {{- end }}
+            - name: ssh-files
+              mountPath: /root/.ssh/id_rsa.pub
+              subPath: id_rsa.pub
+              readOnly: true
+            - name: ssh-files
+              mountPath: /etc/security/ssh/
+              readOnly: true
+            {{- if .Values.extraVolumeMounts }}
+            {{ toYaml .Values.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+        {{- if .Values.sidecars }}
+{{- toYaml .Values.sidecars | nindent 8 }}
+        {{- end }}
+      initContainers:
+        - name: check-namenode
+          image: "busybox:1.28"
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "0.1"
+            limits:
+              memory: "32Mi"
+              cpu: "0.1"
+          command:
+            - sh
+            - -c
+            - |
+              hosts="$NAMENODES"
+              for host in $hosts; do
+                until nslookup $host; do
+                  echo waiting for $host;
+                  sleep 2;
+                done
+              done
+          env:
+            {{- if .Values.global.namenodeHAEnabled }}
+            - name: NAMENODES
+              value: "{{ template "namenode-svc-0" . }} {{ template "namenode-svc-1" . }}"
+            {{- else }}            
+            - name: NAMENODES
+              value: {{ template "namenode-svc-0" . }}
+            {{- end }}
+      restartPolicy: Always
+      {{- if $.Values.global.rbac.create }}
+      serviceAccount: {{ .Values.global.rbac.serviceAccountName }}
+      {{ else }}
+      serviceAccount: default
+      {{- end }}
+      volumes:
+        - name: dn-scripts
+          configMap:
+            name: {{ template "hdfs-k8s.datanode.fullname" . }}-scripts
+            defaultMode: 0744
+        - name: hdfs-config
+          configMap:
+            name: {{ template "hdfs-configmap" . }}
+        {{- if .Values.global.kerberosEnabled }}
+        - name: kerberos-config
+          configMap:
+            name: {{ template "krb5-configmap" . }}
+        {{- end }}
+        - name: kerberos-keytabs
+          secret:
+            secretName: {{ template "krb5-keytabs-secret" . }}
+        - name: ssh-files
+          secret:
+            secretName: {{ template "ssh-secret" . }}
+        {{- if .Values.extraVolumes }}
+        {{ toYaml .Values.extraVolumes | nindent 8}}
+        {{- end }}
+  volumeClaimTemplates:
+    {{- range $k, $v := until (int .Values.persistence.volumesCount) }}
+    - metadata:
+        name: hdfs-data-{{ $v }}
+      spec:
+        accessModes:
+          - {{ $.Values.persistence.accessMode | quote }}
+        resources:
+          requests:
+            storage: {{ $.Values.persistence.size | quote }}
+      {{- if $.Values.persistence.storageClass }}
+        {{- if (eq "-" $.Values.persistence.storageClass) }}
+        storageClassName: ""
+        {{- else }}
+        storageClassName: "{{ $.Values.persistence.storageClass }}"
+        {{- end }}
+      {{- end }}
+      {{- if $.Values.persistence.selector }}
+        selector:
+{{ toYaml $.Values.persistence.selector | indent 10 }}
+      {{- end }}
+    {{- end }}

@@ -1,0 +1,128 @@
+---
+{{- if .Values.global.rbac.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.global.rbac.serviceAccountName }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
+---
+{{- if $.Values.global.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.global.rbac.roleName }}
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - "get"
+      - "list"
+      - "create"
+      - "patch"
+      - "update"
+{{- end }}
+
+---
+{{- if $.Values.global.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.global.rbac.roleBindingName }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ .Values.global.rbac.roleName }}
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.global.rbac.serviceAccountName }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "hdfs-k8s.subchart" . }}-initial-scripts
+  labels:
+    chart: {{ template "hdfs-k8s.subchart" . }}
+    release: {{ .Release.Name }}
+data:
+  pre-install.sh: |
+    #!/usr/bin/env bash
+    # Exit on error. Append "|| true" if you expect an error.
+    set -o errexit
+    # Exit on error inside any functions or subshells.
+    set -o errtrace
+    # Do not allow use of undefined vars. Use ${VAR:-} to use an undefined VAR
+    set -o nounset
+    # Catch an error in command pipes. e.g. mysqldump fails (but gzip succeeds)
+    # in `mysqldump |gzip`
+    set -o pipefail
+    # Turn on traces, useful while debugging.
+    set -o xtrace
+
+    function createSshSecret {
+      ssh-keygen -q -t rsa -N '' -f ./id_rsa <<<y >/dev/null 2>&1
+      kubectl create secret generic $SSH_SECRET_NAME -n $NAMESPACE \
+        --from-file=id_rsa \
+        --from-file=id_rsa.pub
+    }
+
+    check_ssh_sec=`kubectl get secret $SSH_SECRET_NAME --ignore-not-found -n $NAMESPACE -o name`
+    if [[ -z "$check_ssh_sec" ]]; then
+      createSshSecret
+    fi
+
+    
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "hdfs-k8s.subchart" . }}-generate-secret
+  labels:
+    chart: {{ template "hdfs-k8s.subchart" . }}
+    release: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    app.kubernetes.io/version: {{ .Chart.Version }}
+    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+spec:
+  template:
+    metadata:
+      name: {{ template "hdfs-k8s.subchart" . }}-generate-secret
+      labels:
+        app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+        app.kubernetes.io/instance: {{ .Release.Name | quote }}
+        helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    spec:
+      restartPolicy: Never
+      {{- if $.Values.global.rbac.create }}
+      serviceAccount: {{ .Values.global.rbac.serviceAccountName }}
+      {{ else }}
+      serviceAccount: default
+      {{- end }}
+      containers:
+      - name: generate-secret-job
+        image: "{{ .Values.global.dockerRegistry }}/internal-kubectl:2.0"
+        env:
+          - name: SSH_SECRET_NAME
+            value: {{ template "ssh-secret" . }}
+          - name: NAMESPACE
+            value: {{ .Release.Namespace }}
+        command: ['/bin/sh', '-c']
+        args:
+          - "/job-scripts/pre-install.sh"
+        volumeMounts:
+          - name: job-scripts
+            mountPath: /job-scripts
+            readOnly: true
+      volumes:
+        - name: job-scripts
+          configMap:
+            name: {{ template "hdfs-k8s.subchart" . }}-initial-scripts
+            defaultMode: 0744
+  backoffLimit: 4

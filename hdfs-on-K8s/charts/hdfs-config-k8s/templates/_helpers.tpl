@@ -62,3 +62,14 @@ the only special index that helm template gives us.
   {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+hadoop.security.authorization
+*/}}
+{{- define "hadoop-security-authorization" -}}
+{{- if .Values.global.hadoopSecurityAuthorization -}}
+{{- .Values.global.hadoopSecurityAuthorization -}}
+{{- else -}}
+{{- printf "true" -}}
+{{- end -}}
+{{- end -}}
