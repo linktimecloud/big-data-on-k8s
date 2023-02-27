@@ -190,6 +190,19 @@ login may fail.
 {{- end -}}
 
 {{/*
+Zookeeper parent znode
+*/}}
+{{- define "dfs-replication" -}}
+{{- if .Values.global.dfsReplication -}}
+{{- $replicas := .Values.global.dfsReplication | int -}}
+{{- printf "%d" $replicas -}}
+{{- else -}}
+{{- printf "%d" 3 -}}
+{{- end -}}
+{{- end -}}
+
+
+{{/*
 Create the zookeeper quorum server list.  The below uses two loops to make
 sure the last item does not have comma. It uses index 0 for the last item
 since that is the only special index that helm template gives us.
