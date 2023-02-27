@@ -1,23 +1,10 @@
 set -e
 
 check_app() {
-  READY_STR=$(kubectl get pods|grep $1 |head -n 1|awk '{print $2}')
-  while [ -z "${READY_STR}" ]; do
-    echo "waiting for $1 to create"
-    sleep 5
-    READY_STR=$(kubectl get pods|grep $1 |head -n 1|awk '{print $2}')
-  done
-
-  arr=(${READY_STR//\// })
-  while [ "${arr[0]}" != "${arr[1]}" ]; do
-    echo "waiting for $1 to start"
-    sleep 5
-    READY_STR=$(kubectl get pods|grep $1 |head -n 1|awk '{print $2}')
-    arr=(${READY_STR//\// })
-  done
+  kubectl wait pods -l app=$1 --for condition=Ready --timeout=90s
 }
 
-check_app hs2
+check_app linktime-hs2
 
 WORK_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -28,6 +15,6 @@ helm install -f ${WORK_DIR}/operator/charts/spark-operator-chart/values.yaml my-
 
 kubectl apply -f ${WORK_DIR}/kbms.yaml
 
-check_app kbms
+check_app k8s-bigdata-manage-server
 
 set +e
