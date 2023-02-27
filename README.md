@@ -155,9 +155,11 @@ If you want to cleanup PVC and PV(not necessary), run:
 ```
 kubectl delete pvc metadatadir-my-hdfs-namenode-0
 kubectl delete pvc hdfs-data-0-my-hdfs-datanode-0
-kubectl delete pvc hdfs-data-0-my-hdfs-datanode-1
-kubectl delete pvc hdfs-data-0-my-hdfs-datanode-2
 kubectl delete pvc mysql-storage-mysql-0
+```
+If you are running with n (n>1) datanodes and want to cleanup PVCs, run the following by replacing x from 1 to n:
+```
+kubectl delete pvc hdfs-data-0-my-hdfs-datanode-x
 ```
 If you run HDFS with HA and want to cleanup all PVCs, run:
 ```

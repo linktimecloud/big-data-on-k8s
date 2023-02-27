@@ -259,7 +259,7 @@ hdfs-datanode-k8s:
   # jmx port
   jmxPort: 54322
 
-  replicas: 3
+  replicas: 1
 
   resources:
     requests:
@@ -349,6 +349,9 @@ global:
   ## Whether or not to expect namenodes in the HA setup.
   namenodeHAEnabled: false
 
+  ## Default block replication for HDFS
+  dfsReplication: 1
+  
   ## The number of zookeeper server to have in the quorum.
   ## This should match zookeeper.replicaCount above. Used only when
   ## namenodeHAEnabled is set.

@@ -273,6 +273,10 @@ data:
         <value>false</value>
       </property>
     {{- end }}
+      <property>
+        <name>dfs.replication</name>
+        <value>{{ template "dfs-replication" . }}</value>
+      </property>
     </configuration>
   webhdfs: |
     http://httpfs-gateway-svc.admin.svc.cluster.local:14000
