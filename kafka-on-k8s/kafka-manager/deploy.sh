@@ -17,29 +17,17 @@ split() {
    IFS=$'\n' read -d "" -ra arr <<< "${1//$2/$'\n'}"
 }
 
-# download images
-docker pull ${kafka_manager_image}
-
 # deploy kafka cluster
 pushd "${WORK_DIR}" > /dev/null
 sed "s#{{kafka_manager_image}}#${kafka_manager_image}#g" kafka-manager.yaml > kafka-manager.yaml.tmp
 kubectl create -f kafka-manager.yaml.tmp
 popd
 
-POD_NAME_PREFIX=kafka-manager
-READY_STR=$(kubectl get pods|grep ${POD_NAME_PREFIX}|head -n 1|awk '{print $2}')
-while [ -z "${READY_STR}" ]; do
-  echo "waiting for ${POD_NAME_PREFIX} to create"
-  sleep 5
-  READY_STR=$(kubectl get pods|grep ${POD_NAME_PREFIX}|head -n 1|awk '{print $2}')
-done
+set -e
 
-split "${READY_STR}" "/"
-while [ "${arr[0]}" != "${arr[1]}" ]; do
-  echo "waiting for ${POD_NAME_PREFIX} to start"
-  sleep 5
-  READY_STR=$(kubectl get pods|grep ${POD_NAME_PREFIX}|head -n 1|awk '{print $2}')
-  split "${READY_STR}" "/"
-done
+sleep 10
+kubectl wait pods -l app=kafka-manager --for condition=Ready --timeout=90s
+
+set +e
 
 kubectl exec -i kafka-cluster-strimzi-kafka-0 -- curl -X GET http://kafka-manager-svc:9060/health

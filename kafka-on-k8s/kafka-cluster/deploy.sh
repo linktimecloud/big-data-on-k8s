@@ -15,24 +15,12 @@ echo "kafka image:${kafka_image}"
 broker_num=${BROKER_NUM:-1}
 echo "kafka broker_num:${broker_num}"
 
-READY_STR=$(kubectl get pods|grep strimzi-cluster-operator|head -n 1|awk '{print $2}')
-while [ -z "${READY_STR}" ]; do
-  echo "waiting for operator to create"
-  sleep 5
-  READY_STR=$(kubectl get pods|grep strimzi-cluster-operator|head -n 1|awk '{print $2}')
-done
+set -e
 
-arr=(${READY_STR//\// })
-while [ "${arr[0]}" != "${arr[1]}" ]; do
-  echo "waiting for operator to start"
-  sleep 5
-  READY_STR=$(kubectl get pods|grep strimzi-cluster-operator|head -n 1|awk '{print $2}')
-  arr=(${READY_STR//\// })
-done
+kubectl wait pods -l name=strimzi-cluster-operator --for condition=Ready --timeout=90s
 
 pushd "${WORK_DIR}" > /dev/null
 
-set -e
 if [[ "${broker_num}" == "1" ]];then
   sed "s#{{kafka_image}}#${kafka_image}#g" kafka-cluster-single.yaml > kafka-cluster.yaml.tmp
 else

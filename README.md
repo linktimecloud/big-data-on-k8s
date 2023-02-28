@@ -178,6 +178,7 @@ kubectl delete pvc metadatadir-my-hdfs-namenode-1
 source kafka-on-k8s/setup-env.sh
 ```
 ### 2. Start MySQL(about 2 mins)
+MySQL is used here to save the metadata of Kafka Manager. Skip this step if it is already deployed.
 ```
 bash mysql-on-k8s/deploy.sh
 ```
