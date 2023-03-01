@@ -95,7 +95,7 @@ Then start a beeline client：
 ```
 /opt/hive/bin/beeline -u 'jdbc:hive2://linktime-hs2-0.linktime-hs2.default.svc.cluster.local:10000/;'
 ```
-In beeline cliet, we run the following statements:
+In beeline client, we run the following statements:
 ```
 create table if not exists student(id int, name string) partitioned by(month string, day string);
 
@@ -116,7 +116,7 @@ When this happens, it usually means spark driver and executor pods cannot start 
 ```
 bash spark-on-k8s/deploy.sh
 ```
-To verify that Spark Operator is  working properly, we first copy two files tp the pod linktime-hms-0:
+To verify that Spark Operator is  working properly, we first copy two files to the pod linktime-hms-0:
 ```
 kubectl cp spark-on-k8s/demo.py  linktime-hms-0:/hms/.
 kubectl cp spark-on-k8s/spark-submit.sh  linktime-hms-0:/hms/.
