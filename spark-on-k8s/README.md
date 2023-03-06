@@ -1,4 +1,6 @@
-# Steps for deployment
+# Spark on K8s
+We tailored Kubernetes Operator for Apache Spark to make simplier deployment in this project. For the complete deployment, please refer to:<p>
+https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
 
 ## Install spark operator
 
