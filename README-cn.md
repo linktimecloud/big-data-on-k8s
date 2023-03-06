@@ -3,7 +3,16 @@
 智领云研发团队在大数据平台云原生化的开发过程中，通过对开源大数据组件的扩展和集成，实现了传统大数据平台到K8s的平稳迁移。在这个项目中，我们将HDFS、Hive、Spark operator、和Kafka Operator这些大数据组件的部署方式共享出来，开发者可以基于这个项目部署一个实验的大数据集群来体验一下云原生大数据平台。需要注意的是，本项目只能作为一个实验系统来运行，因为它不支持高可用、Kerberos安全认证、以及基于Apache Ranger的鉴权机制。关于大数据平台的云原生改造，大家可以参考我们在CSDN上发表的文章：<br>
 [Spark & Hive 云原生改造在智领云的应用](https://blog.csdn.net/csdnnews/article/details/124054543)
 
-## 二、资源配置
+## 二、参考项目
+我们通过对以下开源项目的裁剪，简化了HDFS、Spark和Kafka的部署。如需每个组件的完整部署说明，请参考相应的项目。
+1. kubernetes-HDFS<p>
+https://github.com/apache-spark-on-k8s/kubernetes-HDFS<p>
+2. Kubernetes Operator for Apache Spark<p>
+https://github.com/GoogleCloudPlatform/spark-on-k8s-operator<p>
+3. Strimzi Kafka Operator<p>
+https://github.com/strimzi/strimzi-kafka-operator
+
+## 三、资源配置
 如果在单机上进行实验，建议至少配置8核16GB内存（空余资源），以及至少50GB空闲的硬盘空间。需要预先安装[helm](https://helm.sh/docs/intro/install/)，[docker](https://www.docker.com/get-started/), [kubectl](https://kubernetes.io/docs/tasks/tools/)和K8s。推荐使用[k3d](https://github.com/k3d-io/k3d)（只支持单节点）或者[kind](https://kind.sigs.k8s.io/)（支持多节点）来搭建K8s集群。同时，我们推荐使用[Lens](https://k8slens.dev/)来管理K8s集群。<br><br>
 经过验证的软件版本<br>
 Helm: v3.9.0<br>
@@ -52,10 +61,10 @@ kind delete cluster --name multi-node
 ```
 
 
-## 三、测试环境
+## 四、测试环境
 我们使用Mac笔记本进行了本地测试，给Docker Desktop分配了5核8GB内存资源。以下每步的执行时间都是在该环境下基于k3d测试运行的结果。测试中绝大部分的时间是花在拉取镜像的过程中。由于测试环境资源的限制，我们只能安装MySQL+HDFS+Hive+Spark集群，或者MySQL+Kafka集群。在资源充足的情况下，可以将大数据所有组件都安装上去。
 
-## 四、在K8s上运行Hive和Spark
+## 五、在K8s上运行Hive和Spark
 ### 第1步：启动MySQL（大约需要2分钟）
 ```
 bash mysql-on-k8s/deploy.sh
@@ -149,7 +158,7 @@ kubectl delete pvc metadatadir-my-hdfs-namenode-0
 kubectl delete pvc mysql-storage-mysql-0
 ```
 
-## 五、在K8s上运行Kafka
+## 六、在K8s上运行Kafka
 ### 第1步：设置环境变量
 ###
 ```

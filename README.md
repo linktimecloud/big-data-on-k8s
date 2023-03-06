@@ -2,6 +2,15 @@
 ## Background
 The engineering team at LinkTimeCloud has been working on migrating traditional big data platform to K8s. By expanding the existing open source projects, we have implemented a fairly stable platform that runs purely on K8s with production features such as authentication and authorization etc. In this project, we share a simple version of our implementation that allows developers to deploy an experimental platform with core components like HDFS, Hive, Spark and Kafka on K8s.
 
+## References
+We have simplified the deployment of HDFS, Spark, and Kafka by tailoring the following open-source projects. For complete deployment instructions for each individual component, please refer to the corresponding project:
+1. kubernetes-HDFS<p>
+https://github.com/apache-spark-on-k8s/kubernetes-HDFS<p>
+2. Kubernetes Operator for Apache Spark<p>
+https://github.com/GoogleCloudPlatform/spark-on-k8s-operator<p>
+3. Strimzi Kafka Operator<p>
+https://github.com/strimzi/strimzi-kafka-operator
+
 ## Prerequisites
 To deploy the platform, we recommend a test environment with at least 8 core CPU, 16GB RAM and 50GB disk space.
 The following softwares are required: [helm](https://helm.sh/docs/intro/install/), [docker](https://www.docker.com/get-started/), and [kubectl](https://kubernetes.io/docs/tasks/tools/). To run a K8s cluster, we recommend to try [k3d](https://github.com/k3d-io/k3d)（only supports single node cluster）or [kind](https://kind.sigs.k8s.io/)（supports multiple nodes cluster）. To manage K8s clusters, we recommend to use [Lens](https://k8slens.dev/).
