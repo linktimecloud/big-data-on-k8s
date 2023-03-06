@@ -1,6 +1,5 @@
 # HDFS on K8s
-
-We tailored kubernetes-HDFS project to make it simplier. For the complete deployment, please refer to:<p>
+We tailored kubernetes-HDFS project to make simplier deployment in this project. For the complete deployment, please refer to:<p>
 https://github.com/apache-spark-on-k8s/kubernetes-HDFS
 
 
