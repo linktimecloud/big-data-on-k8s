@@ -408,7 +408,7 @@ global:
 
   httpsEnables: false
   ## Docker registry
-  dockerRegistry: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud
+  dockerRegistry: registry.cn-hangzhou.aliyuncs.com/linktimecloud
   imageTag: 3.1.1-1.0.0
 
   ## rbac

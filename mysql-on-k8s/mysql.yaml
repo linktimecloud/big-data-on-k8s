@@ -29,7 +29,7 @@ spec:
         runAsUser: 0
       containers:
         - name: mysql
-          image: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/mysql:5.7.36
+          image: registry.cn-hangzhou.aliyuncs.com/linktimecloud/mysql:5.7.36
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3306
