@@ -65,7 +65,7 @@ spec:
     spec:
       containers:
         - name: k8s-bigdata-manage-server
-          image: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/kbms:4.0
+          image: registry.cn-hangzhou.aliyuncs.com/linktimecloud/kbms:4.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8400
@@ -73,7 +73,7 @@ spec:
             - name: NAMESPACE
               value: default
             - name: SPARK_DOCKER_IMAGE
-              value: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/spark:v3.1.1.2-1.2.2-driver
+              value: registry.cn-hangzhou.aliyuncs.com/linktimecloud/spark:v3.1.1.2-1.2.2-driver
             - name: HADOOP_CONFIGMAP_NAME
               value: my-hdfs-config
             - name: SPARK_CONFIGMAP_NAME
