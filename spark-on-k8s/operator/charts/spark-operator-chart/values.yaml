@@ -8,7 +8,7 @@ replicaCount: 1
 
 image:
   # -- Image repository
-  repository: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/spark-operator
+  repository: registry.cn-hangzhou.aliyuncs.com/linktimecloud/spark-operator
   # -- Image pull policy
   pullPolicy: IfNotPresent
   # -- if set, override the image tag whose default is the chart appVersion.

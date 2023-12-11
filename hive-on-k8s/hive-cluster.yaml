@@ -57,7 +57,7 @@ spec:
       dnsPolicy: ClusterFirst
       containers:
       - name: linktime-hms
-        image: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/linktime-hms:4.0
+        image: registry.cn-hangzhou.aliyuncs.com/linktimecloud/linktime-hms:4.0
         imagePullPolicy: IfNotPresent
         env:
         - name: DEFAULT_SYSTEM_USER
@@ -127,7 +127,7 @@ spec:
             port: 9083
       initContainers:
       - name: init-mysql
-        image: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/linktime-hms:4.0
+        image: registry.cn-hangzhou.aliyuncs.com/linktimecloud/linktime-hms:4.0
         imagePullPolicy: IfNotPresent
         command: ['bash', '/hms/initHiveDb.sh']
         env:
@@ -192,7 +192,7 @@ spec:
       dnsPolicy: ClusterFirst
       containers:
         - name: linktime-hs2
-          image: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/linktime-hs2-group:4.0
+          image: registry.cn-hangzhou.aliyuncs.com/linktimecloud/linktime-hs2-group:4.0
           imagePullPolicy: IfNotPresent
           command:
           - /bin/bash
@@ -222,7 +222,7 @@ spec:
           - name: SPARK_MASTER
             value: https://kubernetes.default.svc.cluster.local:443
           - name: SPARK_KUBERNETES_CONTAINER_IMAGE
-            value: ltc-registry.cn-hangzhou.cr.aliyuncs.com/linktimecloud/linktime-hs2-group:4.0
+            value: registry.cn-hangzhou.aliyuncs.com/linktimecloud/linktime-hs2-group:4.0
           - name: SPARK_KUBERNETES_NAMESPACE
             value: default
           - name: HADOOP_CONFIGMAPNAME
